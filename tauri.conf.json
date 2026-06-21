@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nexxeln/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "LanType",
+  "version": "0.1.0",
+  "identifier": "com.lantype.app",
+  "build": {
+    "frontendDist": "../web",
+    "devUrl": "tauri://localhost",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LanType",
+        "width": 320,
+        "height": 460,
+        "center": true,
+        "decorations": false,
+        "resizable": false,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}
