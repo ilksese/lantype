@@ -13,6 +13,8 @@ pub struct ConnectInfo {
 pub enum ClientMessage {
     #[serde(rename = "type")]
     Type { text: String },
+    #[serde(rename = "diff")]
+    Diff { backspace: u32, text: String },
     #[serde(rename = "ping")]
     Ping,
 }

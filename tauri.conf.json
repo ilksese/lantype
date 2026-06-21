@@ -4,10 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.lantype.app",
   "build": {
-    "frontendDist": "../web",
-    "devUrl": "tauri://localhost",
-    "beforeDevCommand": "",
-    "beforeBuildCommand": ""
+    "frontendDist": "web"
   },
   "app": {
     "windows": [

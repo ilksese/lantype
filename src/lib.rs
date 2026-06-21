@@ -1,4 +1,5 @@
 pub mod core;
+pub mod phone;
 pub mod qr;
 pub mod tray;
 
@@ -9,12 +10,14 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::core::mdns::MdnsService;
 use crate::core::ws::WsServer;
+use crate::phone::PhoneServer;
 use crate::tray::PrivacyState;
 use tokio::sync::Mutex;
 
 struct AppState {
     ws_server: Arc<Mutex<WsServer>>,
     mdns: Arc<Mutex<MdnsService>>,
+    http_port: u16,
 }
 
 #[tauri::command]
@@ -23,23 +26,23 @@ async fn get_connection_info(
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let ws = state.ws_server.lock().await;
-    let port = ws.port();
+    let ws_port = ws.port();
+    let http_port = state.http_port;
 
     let device_name = hostname();
 
     let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
-    let key = uuid::Uuid::new_v4().to_string();
 
-    let url = format!("lantype://{device_name}@{local_ip}:{port}?key={key}");
-    info!("Connection URL: {url}");
+    let url = format!("http://{local_ip}:{http_port}/?ws={ws_port}");
+    info!("Phone page URL: {url}");
 
     let data_url = qr::qr_data_url(&url)?;
 
     let json = serde_json::json!({
         "qrDataUrl": data_url,
         "deviceName": device_name,
-        "address": format!("ws://{}:{}", local_ip, port),
-        "url": url,
+        "address": format!("ws://{}:{}", local_ip, ws_port),
+        "httpUrl": url,
     });
 
     Ok(json.to_string())
@@ -81,8 +84,12 @@ fn hostname() -> String {
 
 fn get_local_ip() -> Option<String> {
     for iface in local_ip_address::list_afinet_netifas().ok()? {
-        if !iface.0.starts_with("lo") && !iface.1.is_loopback() {
-            if let std::net::IpAddr::V4(ip) = iface.1 {
+        if let std::net::IpAddr::V4(ip) = iface.1 {
+            if !ip.is_loopback() && !ip.is_link_local()
+                && (ip.octets()[0] == 10
+                    || (ip.octets()[0] == 172 && (16..=31).contains(&ip.octets()[1]))
+                    || (ip.octets()[0] == 192 && ip.octets()[1] == 168))
+            {
                 return Some(ip.to_string());
             }
         }
@@ -113,9 +120,18 @@ pub fn run() {
                     return;
                 }
 
-                let port = ws_server.port();
+                let ws_port = ws_server.port();
 
-                let mut mdns = MdnsService::new(device_name_clone.clone(), port);
+                let phone_server = match PhoneServer::start(ws_port).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        log::error!("Failed to start HTTP server: {e}");
+                        return;
+                    }
+                };
+                let http_port = phone_server.lock().await.port();
+
+                let mut mdns = MdnsService::new(device_name_clone.clone(), ws_port);
                 if let Err(e) = mdns.start() {
                     log::error!("Failed to start mDNS: {e}");
                 }
@@ -123,6 +139,7 @@ pub fn run() {
                 handle.manage(AppState {
                     ws_server: Arc::new(Mutex::new(ws_server)),
                     mdns: Arc::new(Mutex::new(mdns)),
+                    http_port,
                 });
             });
 

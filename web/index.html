@@ -79,15 +79,14 @@ body {
   <div class="hint">扫码连接 · 手机浏览器输入文字</div>
 </div>
 <script>
-const __TAURI__ = window.__TAURI__;
-const invoke = __TAURI__.invoke;
+const invoke = window.__TAURI_INTERNALS__.invoke;
 
 async function refresh() {
   const raw = await invoke('get_connection_info');
   const info = JSON.parse(raw);
   document.getElementById('deviceName').textContent = info.deviceName;
   document.getElementById('qrImage').src = info.qrDataUrl;
-  document.getElementById('address').textContent = info.url;
+  document.getElementById('address').textContent = info.httpUrl;
 }
 refresh();
 

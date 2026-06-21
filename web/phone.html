@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>LanType 输入</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+  background:#1a1a2e;color:#eee;display:flex;flex-direction:column;
+  min-height:100dvh;overflow:hidden
+}
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px 12px;border-bottom:1px solid rgba(255,255,255,.06)
+}
+.header h1{font-size:18px;font-weight:600;letter-spacing:.5px;color:#c4b5fd}
+.status{display:flex;align-items:center;gap:6px;font-size:13px;color:#888;transition:color .3s}
+.status .dot{
+  width:8px;height:8px;border-radius:50%;
+  background:#555;transition:background .3s,box-shadow .3s
+}
+.status.connected{color:#4ade80}
+.status.connected .dot{background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.5)}
+.status.disconnected{color:#f87171}
+.status.disconnected .dot{background:#f87171;box-shadow:0 0 6px rgba(248,113,113,.5)}
+.status.reconnecting{color:#facc15}
+.status.reconnecting .dot{background:#facc15;box-shadow:0 0 6px rgba(250,204,21,.5);animation:pulse .8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.device-row{text-align:center;padding:10px 20px 6px;font-size:13px;color:#666;min-height:36px}
+.device-row .name{color:#a78bfa;font-weight:500}
+.input-wrap{flex:1;display:flex;padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+textarea{
+  flex:1;width:100%;resize:none;border:none;outline:none;
+  font-size:22px;line-height:1.6;padding:16px 18px;
+  border-radius:16px;background:rgba(255,255,255,.06);
+  color:#eee;font-family:inherit;transition:background .3s
+}
+textarea:focus{background:rgba(255,255,255,.09)}
+textarea::placeholder{color:#555}
+textarea:disabled{opacity:.4;cursor:not-allowed}
+.footer{text-align:center;padding:10px 20px 16px;font-size:11px;color:#444}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>LanType</h1>
+  <div class="status disconnected" id="status">
+    <span class="dot"></span>
+    <span id="statusText">未连接</span>
+  </div>
+</div>
+<div class="device-row">
+  <span id="deviceLabel">扫码或输入地址连接</span>
+</div>
+<div class="input-wrap">
+  <textarea id="input" placeholder="在此输入文字..." disabled autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+</div>
+<div class="footer">文字实时同步到桌面端</div>
+
+<script>
+(function(){
+  var statusEl=document.getElementById('status');
+  var statusText=document.getElementById('statusText');
+  var deviceLabel=document.getElementById('deviceLabel');
+  var input=document.getElementById('input');
+  var ws=null;
+  var reconnectTimer=null;
+
+  function setStatus(mode,text){
+    statusEl.className='status '+mode;
+    statusText.textContent=text;
+  }
+
+  function connect(){
+    var params=new URLSearchParams(window.location.search);
+    var wsPort=params.get('ws')||'{{WS_PORT}}';
+    var host=window.location.hostname;
+    var url='ws://'+host+':'+wsPort;
+
+    setStatus('reconnecting','连接中...');
+    if(ws){try{ws.close()}catch(e){}}
+    ws=new WebSocket(url);
+
+    ws.onopen=function(){
+      setStatus('connected','已连接');
+      input.disabled=false;
+      input.focus();
+    };
+
+    ws.onmessage=function(e){
+      try{
+        var msg=JSON.parse(e.data);
+        if(msg.type==='connected'){
+          deviceLabel.innerHTML='已连接至 <span class="name">'+msg.device+'</span>';
+        }
+      }catch(err){}
+    };
+
+    ws.onclose=function(){
+      setStatus('disconnected','已断开');
+      input.disabled=true;
+      deviceLabel.textContent='连接已断开，正在重连...';
+      if(reconnectTimer)clearTimeout(reconnectTimer);
+      reconnectTimer=setTimeout(connect,3000);
+    };
+
+    ws.onerror=function(){
+      ws.close();
+    };
+  }
+
+  var prevText='';
+  function sendDiff(newText){
+    if(!(ws&&ws.readyState===WebSocket.OPEN)){prevText=newText;return}
+    var commonLen=0;
+    while(commonLen<prevText.length&&commonLen<newText.length&&prevText[commonLen]===newText[commonLen]){
+      commonLen++;
+    }
+    var backspace=prevText.length-commonLen;
+    var append=newText.substring(commonLen);
+    if(backspace>0||append.length>0){
+      ws.send(JSON.stringify({type:'diff',backspace:backspace,text:append}));
+    }
+    prevText=newText;
+  }
+
+  var isComposing=false;
+  input.addEventListener('compositionstart',function(){isComposing=true});
+  input.addEventListener('compositionend',function(){
+    isComposing=false;
+    sendDiff(input.value);
+  });
+  input.addEventListener('input',function(){
+    if(!isComposing)sendDiff(input.value);
+  });
+
+  connect();
+})();
+</script>
+</body>
+</html>

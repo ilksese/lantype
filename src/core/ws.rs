@@ -32,7 +32,7 @@ impl WsServer {
     }
 
     pub async fn start(&mut self) -> Result<(), String> {
-        let listener = TcpListener::bind("127.0.0.1:0")
+        let listener = TcpListener::bind("0.0.0.0:0")
             .await
             .map_err(|e| format!("bind: {e}"))?;
         self.port = listener.local_addr().map_err(|e| format!("local addr: {e}"))?.port();
@@ -98,6 +98,18 @@ async fn handle_client(
                     Ok(ClientMessage::Type { text }) => {
                         if let Err(e) = keyboard.type_text(&text).await {
                             error!("Type error: {e}");
+                        }
+                    }
+                    Ok(ClientMessage::Diff { backspace, text }) => {
+                        if backspace > 0 {
+                            if let Err(e) = keyboard.delete_chars(backspace).await {
+                                error!("Delete error: {e}");
+                            }
+                        }
+                        if !text.is_empty() {
+                            if let Err(e) = keyboard.type_text(&text).await {
+                                error!("Type error: {e}");
+                            }
                         }
                     }
                     Err(e) => {
