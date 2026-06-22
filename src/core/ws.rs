@@ -96,7 +96,7 @@ async fn handle_client(
                         let _ = write.send(Message::Text(pong.into())).await;
                     }
                     Ok(ClientMessage::Type { text }) => {
-                        if let Err(e) = keyboard.type_text(&text).await {
+                        if let Err(e) = keyboard.type_text(text).await {
                             error!("Type error: {e}");
                         }
                     }
@@ -107,7 +107,7 @@ async fn handle_client(
                             }
                         }
                         if !text.is_empty() {
-                            if let Err(e) = keyboard.type_text(&text).await {
+                            if let Err(e) = keyboard.type_text(text).await {
                                 error!("Type error: {e}");
                             }
                         }

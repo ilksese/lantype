@@ -77,9 +77,10 @@ async fn toggle_privacy(app: AppHandle) -> Result<bool, String> {
 }
 
 fn hostname() -> String {
-    std::env::var("COMPUTERNAME")
-        .or_else(|_| std::env::var("HOSTNAME"))
-        .unwrap_or_else(|_| "LanType".to_string())
+    hostname::get()
+        .ok()
+        .and_then(|h| h.into_string().ok())
+        .unwrap_or_else(|| "LanType".to_string())
 }
 
 fn get_local_ip() -> Option<String> {
@@ -144,6 +145,11 @@ pub fn run() {
             });
 
             tray::setup_tray(app.handle())?;
+
+            #[cfg(target_os = "macos")]
+            log::warn!(
+                "macOS: 请确保 LanType 已在 系统设置 → 隐私与安全性 → 辅助功能 中被授权，否则键盘输入将不生效。"
+            );
 
             Ok(())
         })
