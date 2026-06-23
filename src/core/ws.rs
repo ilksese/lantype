@@ -31,10 +31,33 @@ impl WsServer {
         self.port
     }
 
-    pub async fn start(&mut self) -> Result<(), String> {
-        let listener = TcpListener::bind("0.0.0.0:0")
-            .await
-            .map_err(|e| format!("bind: {e}"))?;
+    /// Start the WebSocket server.
+    ///
+    /// If `port_override` is `Some(port)`, try binding to that port first;
+    /// on failure, fall back to a random port with a warning.
+    /// If `None`, bind to a random port (existing behaviour).
+    pub async fn start(&mut self, port_override: Option<u16>) -> Result<(), String> {
+        let listener = match port_override {
+            Some(port) => {
+                match TcpListener::bind(("0.0.0.0", port)).await {
+                    Ok(l) => {
+                        log::info!("WS server bound to configured port {port}");
+                        l
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to bind to configured port {port} ({e}), falling back to random port");
+                        TcpListener::bind("0.0.0.0:0")
+                            .await
+                            .map_err(|e| format!("bind fallback: {e}"))?
+                    }
+                }
+            }
+            None => {
+                TcpListener::bind("0.0.0.0:0")
+                    .await
+                    .map_err(|e| format!("bind: {e}"))?
+            }
+        };
         self.port = listener.local_addr().map_err(|e| format!("local addr: {e}"))?.port();
         let listener = Arc::new(listener);
         self.listener = Some(listener.clone());

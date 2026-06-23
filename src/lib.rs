@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
 
+use crate::core::config::Config;
 use crate::core::mdns::MdnsService;
 use crate::core::ws::WsServer;
 use crate::phone::PhoneServer;
@@ -18,6 +19,8 @@ struct AppState {
     ws_server: Arc<Mutex<WsServer>>,
     mdns: Arc<Mutex<MdnsService>>,
     http_port: u16,
+    #[allow(dead_code)]
+    config: Config,
 }
 
 #[tauri::command]
@@ -113,10 +116,15 @@ pub fn run() {
             let handle = app.handle().clone();
 
             let device_name_clone = device_name.clone();
+            let config = Config::load();
+            let ws_port_config = match config.port {
+                crate::core::config::PortConfig::Auto => None,
+                crate::core::config::PortConfig::Fixed(port) => Some(port),
+            };
 
             tauri::async_runtime::spawn(async move {
                 let mut ws_server = WsServer::new(device_name_clone.clone());
-                if let Err(e) = ws_server.start().await {
+                if let Err(e) = ws_server.start(ws_port_config).await {
                     log::error!("Failed to start WS server: {e}");
                     return;
                 }
@@ -141,6 +149,7 @@ pub fn run() {
                     ws_server: Arc::new(Mutex::new(ws_server)),
                     mdns: Arc::new(Mutex::new(mdns)),
                     http_port,
+                    config,
                 });
             });
 

@@ -14,8 +14,8 @@ cargo build --release    # single binary at target/release/lantype.exe
 ## Architecture
 
 - Single crate `lantype`, Tauri v2 desktop app.
-- `src/main.rs` → `src/lib.rs` (setup, Tauri commands) → `src/core/{ws,mdns,keyboard,protocol}.rs` + `src/qr.rs` + `src/tray.rs`
-- `src/core/ws.rs`: tokio-tungstenite WebSocket server on `127.0.0.1:0` (random port).
+- `src/main.rs` → `src/lib.rs` (setup, Tauri commands) → `src/core/{ws,mdns,keyboard,protocol,config}.rs` + `src/qr.rs` + `src/tray.rs`
+- `src/core/ws.rs`: tokio-tungstenite WebSocket server on `0.0.0.0:0` (random port). Port can be fixed via `config.json`.
 - `src/core/keyboard.rs`: enigo 0.2 API — `Enigo::new(&Settings::default())`, call `.text()` which requires `use enigo::Keyboard`.
 - `src/core/mdns.rs`: mdns-sd `_lantype._tcp` service, togglable via privacy switch.
 - `src/core/protocol.rs`: JSON messages `{type: "text"|"ping"|"pong"|"connected"}`.
@@ -40,3 +40,9 @@ cargo build --release    # single binary at target/release/lantype.exe
 - `capabilities/default.json` defines window permissions.
 - enigo 0.2 uses `Settings`, not `Default::default()` directly — must import `Keyboard` trait to call `.text()`.
 - mDNS privacy: `AtomicBool` in `PrivacyState`, toggles `MdnsService::start()`/`stop()` at runtime.
+
+## Config
+
+- Config file `config.json` supports only the `port` field (default `"auto"`).
+- Priority (ascending): defaults → `$HOME/.config/lantype/config.json` (global) → `./config.json` (local/cwd). Shallow merge — local keys override global.
+- `"port": "auto"` → random port; `"port": 1234` → fixed port (fallback to random on bind failure).
