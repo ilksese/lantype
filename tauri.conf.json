@@ -13,7 +13,7 @@
         "width": 320,
         "height": 460,
         "center": true,
-        "decorations": false,
+        "decorations": true,
         "resizable": false,
         "fullscreen": false
       }
