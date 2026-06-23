@@ -3,11 +3,20 @@
 ## Build & Run
 
 ```bash
-cargo build --release    # single binary at target/release/lantype.exe
+make release    # builds + auto-packages for current platform
 ```
 
-- No dev server or `npm` needed. `frontendDist: "web"` in `tauri.conf.json` references `web/index.html` relative to project root. `devUrl` is not set, so even debug builds serve from filesystem.
-- `cargo tauri build` is NOT available — use `cargo build --release` directly.
+Or step by step:
+
+```bash
+cargo build --release    # compile only
+./package.sh             # macOS: wrap into .app bundle (optional, make does it)
+```
+
+- **macOS**: `make release` → produces `target/release/LanType.app` with embedded icon
+- **Windows**: `make release` → `target/release/lantype.exe` (icon embedded by tauri_build, no extra step)
+- **Linux**: `make release` → `target/release/lantype`
+- `cargo tauri build` is NOT available — use `make release` instead.
 - Proxy at `127.0.0.1:7897`. Rust crate mirror: 中科大 (system-level `.cargo/config.toml`).
 - Build demands: `HTTP_PROXY`, `HTTPS_PROXY`, or direct network for crate download.
 
