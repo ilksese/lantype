@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
 
-use crate::core::config::Config;
+use crate::core::config::{resolve_device_name, Config};
 use crate::core::mdns::MdnsService;
 use crate::core::ws::WsServer;
 use crate::phone::PhoneServer;
@@ -19,6 +19,7 @@ struct AppState {
     ws_server: Arc<Mutex<WsServer>>,
     mdns: Arc<Mutex<MdnsService>>,
     http_port: u16,
+    device_name: String,
     #[allow(dead_code)]
     config: Config,
 }
@@ -32,7 +33,7 @@ async fn get_connection_info(
     let ws_port = ws.port();
     let http_port = state.http_port;
 
-    let device_name = hostname();
+    let device_name = state.device_name.clone();
 
     let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
 
@@ -65,7 +66,6 @@ async fn toggle_privacy(app: AppHandle) -> Result<bool, String> {
     let app_state = app.state::<AppState>();
     let ws = app_state.ws_server.lock().await;
     let _port = ws.port();
-    let _device_name = hostname();
 
     let mut mdns = app_state.mdns.lock().await;
     if new_val {
@@ -77,13 +77,6 @@ async fn toggle_privacy(app: AppHandle) -> Result<bool, String> {
     }
 
     Ok(new_val)
-}
-
-fn hostname() -> String {
-    hostname::get()
-        .ok()
-        .and_then(|h| h.into_string().ok())
-        .unwrap_or_else(|| "LanType".to_string())
 }
 
 fn get_local_ip() -> Option<String> {
@@ -105,7 +98,8 @@ fn get_local_ip() -> Option<String> {
 pub fn run() {
     env_logger::init();
 
-    let device_name = hostname();
+    let config = Config::load();
+    let device_name = resolve_device_name(&config);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -116,7 +110,7 @@ pub fn run() {
             let handle = app.handle().clone();
 
             let device_name_clone = device_name.clone();
-            let config = Config::load();
+            let config = config.clone();
             let ws_port_config = match config.port {
                 crate::core::config::PortConfig::Auto => None,
                 crate::core::config::PortConfig::Fixed(port) => Some(port),
@@ -149,6 +143,7 @@ pub fn run() {
                     ws_server: Arc::new(Mutex::new(ws_server)),
                     mdns: Arc::new(Mutex::new(mdns)),
                     http_port,
+                    device_name: device_name_clone,
                     config,
                 });
             });
