@@ -73,6 +73,22 @@ textarea:disabled{opacity:.4;cursor:not-allowed}
     statusText.textContent=text;
   }
 
+  function getFriendlyName() {
+    var ua = navigator.userAgent;
+    var browser = '浏览器';
+    if (ua.indexOf('Chrome') !== -1 && ua.indexOf('Edg') === -1) browser = 'Chrome';
+    else if (ua.indexOf('Safari') !== -1 && ua.indexOf('Chrome') === -1) browser = 'Safari';
+    else if (ua.indexOf('Edg') !== -1) browser = 'Edge';
+    else if (ua.indexOf('Firefox') !== -1) browser = 'Firefox';
+    var os = '未知设备';
+    if (ua.indexOf('iPhone') !== -1 || ua.indexOf('iPad') !== -1) os = 'iOS';
+    else if (ua.indexOf('Android') !== -1) os = 'Android';
+    else if (ua.indexOf('Mac') !== -1) os = 'macOS';
+    else if (ua.indexOf('Windows') !== -1) os = 'Windows';
+    else if (ua.indexOf('Linux') !== -1) os = 'Linux';
+    return browser + ' · ' + os;
+  }
+
   function connect(){
     var params=new URLSearchParams(window.location.search);
     var wsPort=params.get('ws')||'{{WS_PORT}}';
@@ -87,6 +103,7 @@ textarea:disabled{opacity:.4;cursor:not-allowed}
       setStatus('connected','已连接');
       input.disabled=false;
       input.focus();
+      ws.send(JSON.stringify({type:'hello', device_name: getFriendlyName()}));
     };
 
     ws.onmessage=function(e){
