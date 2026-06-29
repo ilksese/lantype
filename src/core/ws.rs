@@ -66,6 +66,10 @@ impl WsServer {
         self.client_registry.clone()
     }
 
+    pub fn blocklist(&self) -> Vec<BlockEntry> {
+        self.blocklist.read().unwrap().clone()
+    }
+
     pub fn set_blocklist(&mut self, blocklist: Vec<BlockEntry>) {
         *self.blocklist.write().unwrap() = blocklist;
     }

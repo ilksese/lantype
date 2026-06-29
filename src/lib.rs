@@ -134,22 +134,24 @@ async fn block_device(
         return Err("Client not found".to_string());
     };
 
-    // Add to config blocklist and persist
+    // Update WsServer blocklist (source of truth) and save to disk
     let block_entry = crate::core::config::BlockEntry {
         ip: info.ip.clone(),
         device_name: info.device_name.clone(),
     };
+    let blocklist = {
+        let mut ws = state.ws_server.lock().await;
+        let mut current = ws.blocklist();
+        current.push(block_entry);
+        ws.set_blocklist(current.clone());
+        current
+    };
+
     let mut config = state.config.clone();
-    config.blocklist.push(block_entry);
+    config.blocklist = blocklist;
     config
         .save()
         .map_err(|e| format!("Failed to save blocklist: {e}"))?;
-
-    // Update WsServer blocklist
-    {
-        let mut ws = state.ws_server.lock().await;
-        ws.set_blocklist(config.blocklist.clone());
-    }
 
     // Disconnect the client
     disconnect_device(app, state, client_id).await
