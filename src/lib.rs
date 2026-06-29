@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::core::config::{resolve_device_name, Config};
 use crate::core::mdns::MdnsService;
-use crate::core::ws::WsServer;
+use crate::core::ws::{ClientRegistry, WsServer};
 use crate::phone::PhoneServer;
 use crate::tray::PrivacyState;
 use tokio::sync::Mutex;
@@ -20,8 +20,8 @@ struct AppState {
     mdns: Arc<Mutex<MdnsService>>,
     http_port: u16,
     device_name: String,
-    #[allow(dead_code)]
     config: Config,
+    client_registry: Arc<ClientRegistry>,
 }
 
 #[tauri::command]
@@ -94,6 +94,67 @@ fn get_local_ip() -> Option<String> {
     None
 }
 
+#[tauri::command]
+async fn get_connected_devices(state: State<'_, AppState>) -> Result<String, String> {
+    let clients = state.client_registry.clients.read().unwrap();
+    serde_json::to_string(&*clients).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn disconnect_device(
+    _app: AppHandle,
+    state: State<'_, AppState>,
+    client_id: String,
+) -> Result<(), String> {
+    let tx = {
+        let mut txs = state.client_registry.shutdown_txs.write().unwrap();
+        txs.remove(&client_id)
+    };
+    match tx {
+        Some(tx) => {
+            let _ = tx.send(true);
+            Ok(())
+        }
+        None => Err("Client not found".to_string()),
+    }
+}
+
+#[tauri::command]
+async fn block_device(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    client_id: String,
+) -> Result<(), String> {
+    // Find client info
+    let entry = {
+        let clients = state.client_registry.clients.read().unwrap();
+        clients.iter().find(|c| c.id == client_id).cloned()
+    };
+    let Some(info) = entry else {
+        return Err("Client not found".to_string());
+    };
+
+    // Add to config blocklist and persist
+    let block_entry = crate::core::config::BlockEntry {
+        ip: info.ip.clone(),
+        device_name: info.device_name.clone(),
+    };
+    let mut config = state.config.clone();
+    config.blocklist.push(block_entry);
+    config
+        .save()
+        .map_err(|e| format!("Failed to save blocklist: {e}"))?;
+
+    // Update WsServer blocklist
+    {
+        let mut ws = state.ws_server.lock().await;
+        ws.set_blocklist(config.blocklist.clone());
+    }
+
+    // Disconnect the client
+    disconnect_device(app, state, client_id).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
@@ -118,12 +179,18 @@ pub fn run() {
 
             tauri::async_runtime::spawn(async move {
                 let mut ws_server = WsServer::new(device_name_clone.clone());
-                if let Err(e) = ws_server.start(ws_port_config).await {
+                if let Err(e) = ws_server.start(ws_port_config, handle.clone()).await {
                     log::error!("Failed to start WS server: {e}");
                     return;
                 }
 
                 let ws_port = ws_server.port();
+
+                // Load blocklist from config
+                let blocklist = config.blocklist.clone();
+                ws_server.set_blocklist(blocklist);
+
+                let client_registry = ws_server.client_registry();
 
                 let phone_server = match PhoneServer::start(ws_port).await {
                     Ok(s) => s,
@@ -145,6 +212,7 @@ pub fn run() {
                     http_port,
                     device_name: device_name_clone,
                     config,
+                    client_registry,
                 });
             });
 
@@ -161,6 +229,9 @@ pub fn run() {
             get_connection_info,
             get_privacy_enabled,
             toggle_privacy,
+            get_connected_devices,
+            disconnect_device,
+            block_device,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

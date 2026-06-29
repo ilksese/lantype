@@ -18,6 +18,13 @@ impl Default for PortConfig {
     }
 }
 
+/// A blocked device entry. Matching is by (ip, device_name) pair.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockEntry {
+    pub ip: String,
+    pub device_name: String,
+}
+
 /// The application-level configuration merged from multiple sources.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -25,6 +32,8 @@ pub struct Config {
     pub port: PortConfig,
     #[serde(default)]
     pub nickname: Option<String>,
+    #[serde(default)]
+    pub blocklist: Vec<BlockEntry>,
 }
 
 impl Default for Config {
@@ -32,6 +41,7 @@ impl Default for Config {
         Self {
             port: PortConfig::Auto,
             nickname: None,
+            blocklist: Vec::new(),
         }
     }
 }
@@ -76,6 +86,36 @@ impl Config {
             warn!("Failed to deserialize merged config, using defaults: {e}");
             Config::default()
         })
+    }
+
+    /// Save current config to the global config file path.
+    /// Merges with existing file content (preserving other keys) using the same
+    /// shallow merge strategy as load().  On failure the error is logged and
+    /// the in-memory config is unaffected.
+    pub fn save(&self) -> Result<(), String> {
+        let global_path = global_config_path().ok_or("No HOME directory")?;
+
+        let mut existing: Value = if global_path.exists() {
+            std::fs::read_to_string(&global_path)
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_else(|| serde_json::json!({}))
+        } else {
+            serde_json::json!({})
+        };
+
+        // Serialize self, override matching keys in existing
+        let self_val = serde_json::to_value(self).map_err(|e| e.to_string())?;
+        merge(&mut existing, self_val);
+
+        // Ensure parent directory exists
+        if let Some(parent) = global_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+
+        let content = serde_json::to_string_pretty(&existing).map_err(|e| e.to_string())?;
+        std::fs::write(&global_path, &content).map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
 
@@ -214,7 +254,7 @@ impl Serialize for PortConfig {
 // ---- Helpers ----
 
 /// Shallow top-level merge: keys from `override_val` replace those in `base`.
-fn merge(base: &mut Value, override_val: Value) {
+pub(crate) fn merge(base: &mut Value, override_val: Value) {
     if let (Value::Object(base_map), Value::Object(override_map)) = (base, override_val) {
         for (k, v) in override_map {
             base_map.insert(k, v);
