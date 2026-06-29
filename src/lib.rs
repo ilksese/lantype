@@ -96,7 +96,7 @@ fn get_local_ip() -> Option<String> {
 
 #[tauri::command]
 async fn get_connected_devices(state: State<'_, AppState>) -> Result<String, String> {
-    let clients = state.client_registry.clients.read().unwrap();
+    let clients = state.client_registry.clients.read().await;
     serde_json::to_string(&*clients).map_err(|e| e.to_string())
 }
 
@@ -107,7 +107,7 @@ async fn disconnect_device(
     client_id: String,
 ) -> Result<(), String> {
     let tx = {
-        let mut txs = state.client_registry.shutdown_txs.write().unwrap();
+        let mut txs = state.client_registry.shutdown_txs.write().await;
         txs.remove(&client_id)
     };
     match tx {
@@ -127,7 +127,7 @@ async fn block_device(
 ) -> Result<(), String> {
     // Find client info
     let entry = {
-        let clients = state.client_registry.clients.read().unwrap();
+        let clients = state.client_registry.clients.read().await;
         clients.iter().find(|c| c.id == client_id).cloned()
     };
     let Some(info) = entry else {
@@ -141,9 +141,9 @@ async fn block_device(
     };
     let blocklist = {
         let mut ws = state.ws_server.lock().await;
-        let mut current = ws.blocklist();
+        let mut current = ws.blocklist().await;
         current.push(block_entry);
-        ws.set_blocklist(current.clone());
+        ws.set_blocklist(current.clone()).await;
         current
     };
 
@@ -190,7 +190,7 @@ pub fn run() {
 
                 // Load blocklist from config
                 let blocklist = config.blocklist.clone();
-                ws_server.set_blocklist(blocklist);
+                ws_server.set_blocklist(blocklist).await;
 
                 let client_registry = ws_server.client_registry();
 

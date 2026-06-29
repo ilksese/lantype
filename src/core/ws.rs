@@ -1,15 +1,18 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use futures_util::{SinkExt, StreamExt};
 use log::{error, info};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::watch;
+use tokio::sync::{watch, RwLock};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use uuid::Uuid;
 
 use crate::core::config::BlockEntry;
@@ -66,12 +69,12 @@ impl WsServer {
         self.client_registry.clone()
     }
 
-    pub fn blocklist(&self) -> Vec<BlockEntry> {
-        self.blocklist.read().unwrap().clone()
+    pub async fn blocklist(&self) -> Vec<BlockEntry> {
+        self.blocklist.read().await.clone()
     }
 
-    pub fn set_blocklist(&mut self, blocklist: Vec<BlockEntry>) {
-        *self.blocklist.write().unwrap() = blocklist;
+    pub async fn set_blocklist(&mut self, blocklist: Vec<BlockEntry>) {
+        *self.blocklist.write().await = blocklist;
     }
 
     /// Start the WebSocket server.
@@ -216,7 +219,12 @@ async fn handle_client(
         }
         Err(_) => {
             info!("Client {addr} timed out waiting for hello");
-            let _ = write.send(Message::Close(None)).await;
+            let _ = write
+                .send(Message::Close(Some(CloseFrame {
+                    code: CloseCode::Library(1008),
+                    reason: Cow::Borrowed("hello timeout"),
+                })))
+                .await;
             return;
         }
     };
@@ -225,12 +233,17 @@ async fn handle_client(
 
     // Check blocklist
     let is_blocked = {
-        let bl = blocklist.read().unwrap();
+        let bl = blocklist.read().await;
         bl.iter().any(|b| b.ip == client_ip && b.device_name == sender_name)
     };
     if is_blocked {
         info!("Rejected blocked device {sender_name} from {addr}");
-        let _ = write.send(Message::Close(None)).await;
+        let _ = write
+            .send(Message::Close(Some(CloseFrame {
+                code: CloseCode::Library(1008),
+                reason: Cow::Borrowed("blocked"),
+            })))
+            .await;
         return;
     }
 
@@ -239,7 +252,7 @@ async fn handle_client(
 
     // Register in registry
     {
-        let mut clients = client_registry.clients.write().unwrap();
+        let mut clients = client_registry.clients.write().await;
         clients.push(ClientInfo {
             id: client_id.clone(),
             device_name: sender_name.clone(),
@@ -247,13 +260,13 @@ async fn handle_client(
         });
     }
     {
-        let mut txs = client_registry.shutdown_txs.write().unwrap();
+        let mut txs = client_registry.shutdown_txs.write().await;
         txs.insert(client_id.clone(), shutdown_tx);
     }
 
     // Emit clients-changed event
     {
-        let clients = client_registry.clients.read().unwrap();
+        let clients = client_registry.clients.read().await;
         let payload =
             serde_json::to_value(&*clients).unwrap_or(serde_json::Value::Array(vec![]));
         let _ = app_handle.emit("clients-changed", payload);
@@ -316,17 +329,17 @@ async fn handle_client(
 
     // Deregister
     {
-        let mut clients = client_registry.clients.write().unwrap();
+        let mut clients = client_registry.clients.write().await;
         clients.retain(|c| c.id != client_id);
     }
     {
-        let mut txs = client_registry.shutdown_txs.write().unwrap();
+        let mut txs = client_registry.shutdown_txs.write().await;
         txs.remove(&client_id);
     }
 
     // Emit updated list
     {
-        let clients = client_registry.clients.read().unwrap();
+        let clients = client_registry.clients.read().await;
         let payload =
             serde_json::to_value(&*clients).unwrap_or(serde_json::Value::Array(vec![]));
         let _ = app_handle.emit("clients-changed", payload);

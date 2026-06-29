@@ -176,18 +176,27 @@ function renderDeviceList(clients) {
     return;
   }
   section.style.display = 'flex';
-  list.innerHTML = clients.map(function(c) {
-    return '<div class="client-card" data-id="' + c.id + '">' +
+  list.innerHTML = '';
+  clients.forEach(function(c) {
+    var card = document.createElement('div');
+    card.className = 'client-card';
+    card.innerHTML =
       '<div class="client-info">' +
         '<div class="client-name">' + escapeHtml(c.device_name) + '</div>' +
         '<div class="client-ip">' + escapeHtml(c.ip) + '</div>' +
       '</div>' +
       '<div class="client-actions">' +
-        '<button class="btn-disconnect" onclick="disconnectClient(\'' + c.id + '\')">断开</button>' +
-        '<button class="btn-block" onclick="blockClient(\'' + c.id + '\')">拉黑</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
+        '<button class="btn-disconnect">断开</button>' +
+        '<button class="btn-block">拉黑</button>' +
+      '</div>';
+    card.querySelector('.btn-disconnect').addEventListener('click', function() {
+      disconnectClient(c.id);
+    });
+    card.querySelector('.btn-block').addEventListener('click', function() {
+      blockClient(c.id);
+    });
+    list.appendChild(card);
+  });
 }
 
 function escapeHtml(s) {

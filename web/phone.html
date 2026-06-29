@@ -115,7 +115,13 @@ textarea:disabled{opacity:.4;cursor:not-allowed}
       }catch(err){}
     };
 
-    ws.onclose=function(){
+    ws.onclose=function(e){
+      if (e.code === 1008) {
+        setStatus('disconnected', '已被拉黑');
+        input.disabled = true;
+        deviceLabel.textContent = '此设备已被拉黑，无法连接';
+        return;
+      }
       setStatus('disconnected','已断开');
       input.disabled=true;
       deviceLabel.textContent='连接已断开，正在重连...';
