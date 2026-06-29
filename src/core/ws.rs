@@ -104,6 +104,7 @@ async fn handle_client(
 
     let connected_msg = protocol::serialize_server_message(&ServerMessage::Connected {
         device: device_name,
+        client_id: uuid::Uuid::new_v4().to_string(),
     });
     if let Err(e) = write.send(Message::Text(connected_msg.into())).await {
         error!("Send error: {e}");
@@ -134,6 +135,9 @@ async fn handle_client(
                                 error!("Type error: {e}");
                             }
                         }
+                    }
+                    Ok(ClientMessage::Hello { .. }) => {
+                        info!("Received Hello from {addr}");
                     }
                     Err(e) => {
                         error!("Parse error: {e}");

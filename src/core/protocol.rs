@@ -17,6 +17,8 @@ pub enum ClientMessage {
     Diff { backspace: u32, text: String },
     #[serde(rename = "ping")]
     Ping,
+    #[serde(rename = "hello")]
+    Hello { device_name: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,7 +27,7 @@ pub enum ServerMessage {
     #[serde(rename = "pong")]
     Pong,
     #[serde(rename = "connected")]
-    Connected { device: String },
+    Connected { device: String, client_id: String },
 }
 
 pub fn parse_client_message(data: &str) -> Result<ClientMessage, serde_json::Error> {
