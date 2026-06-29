@@ -130,12 +130,29 @@ body {
 .btn-disconnect:hover { background:#4b4b6c; }
 .btn-block { background:#5c2e3a; color:#f87171; }
 .btn-block:hover { background:#6c3e4a; }
+.perm-banner {
+  display: none;
+  background: #5c2e3a;
+  border: 1px solid #f87171;
+  border-radius: 10px;
+  padding: 10px 14px;
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  color: #fca5a5;
+  line-height: 1.5;
+}
+.perm-banner.show { display: block; }
 </style>
 </head>
 <body>
 <div class="drag-handle" data-tauri-drag-region></div>
 <div class="container">
   <div class="device-name" id="deviceName">--</div>
+  <div class="perm-banner" id="permBanner">
+    请授予辅助功能权限<br>
+    系统设置 → 隐私与安全性 → 辅助功能 → 添加 LanType
+  </div>
   <div class="qr-box"><img id="qrImage" src="" alt="QR Code"></div>
   <div class="address" id="address">--</div>
   <div class="clients-section" id="clientsSection" style="display:none">
@@ -227,6 +244,12 @@ invoke('get_connected_devices').then(function(raw) {
 // Listen for real-time updates
 listen('clients-changed', function(event) {
   renderDeviceList(event.payload);
+});
+
+// Listen for keyboard permission warning
+listen('keyboard-permission-needed', function() {
+  var banner = document.getElementById('permBanner');
+  banner.classList.add('show');
 });
 </script>
 </body>

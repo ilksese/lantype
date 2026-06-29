@@ -65,6 +65,10 @@ impl WsServer {
         self.port
     }
 
+    pub fn keyboard_healthy(&self) -> bool {
+        self.keyboard.is_healthy()
+    }
+
     pub fn client_registry(&self) -> Arc<ClientRegistry> {
         self.client_registry.clone()
     }
@@ -286,11 +290,29 @@ async fn handle_client(
                                 let _ = write.send(Message::Text(pong.into())).await;
                             }
                             Ok(ClientMessage::Type { text }) => {
+                                if !keyboard.is_healthy() {
+                                    let err_msg = protocol::serialize_server_message(
+                                        &ServerMessage::Error {
+                                            message: "辅助功能权限未授予，请在桌面端授权后重试".into(),
+                                        },
+                                    );
+                                    let _ = write.send(Message::Text(err_msg.into())).await;
+                                    continue;
+                                }
                                 if let Err(e) = keyboard.type_text(text).await {
                                     error!("Type error: {e}");
                                 }
                             }
                             Ok(ClientMessage::Diff { backspace, text }) => {
+                                if !keyboard.is_healthy() {
+                                    let err_msg = protocol::serialize_server_message(
+                                        &ServerMessage::Error {
+                                            message: "辅助功能权限未授予，请在桌面端授权后重试".into(),
+                                        },
+                                    );
+                                    let _ = write.send(Message::Text(err_msg.into())).await;
+                                    continue;
+                                }
                                 if backspace > 0 {
                                     if let Err(e) = keyboard.delete_chars(backspace).await {
                                         error!("Delete error: {e}");

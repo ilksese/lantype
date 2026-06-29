@@ -28,6 +28,8 @@ pub enum ServerMessage {
     Pong,
     #[serde(rename = "connected")]
     Connected { device: String, client_id: String },
+    #[serde(rename = "error")]
+    Error { message: String },
 }
 
 pub fn parse_client_message(data: &str) -> Result<ClientMessage, serde_json::Error> {

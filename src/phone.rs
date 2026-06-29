@@ -6,7 +6,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 
-const PHONE_HTML: &str = include_str!("../web/phone.html");
+const PHONE_HTML: &str = include_str!("../web/phone/dist/index.html");
 
 pub struct PhoneServer {
     port: u16,
@@ -17,7 +17,7 @@ impl PhoneServer {
         self.port
     }
 
-    pub async fn start(ws_port: u16) -> Result<Arc<Mutex<Self>>, String> {
+    pub async fn start() -> Result<Arc<Mutex<Self>>, String> {
         let listener = TcpListener::bind("0.0.0.0:0")
             .await
             .map_err(|e| format!("http bind: {e}"))?;
@@ -26,8 +26,7 @@ impl PhoneServer {
 
         let server = Arc::new(Mutex::new(Self { port }));
 
-        let html = PHONE_HTML
-            .replace("{{WS_PORT}}", &ws_port.to_string());
+        let html = PHONE_HTML.to_owned();
 
         tokio::spawn(async move {
             loop {

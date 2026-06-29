@@ -6,7 +6,7 @@ pub mod tray;
 use log::info;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::core::config::{resolve_device_name, Config};
 use crate::core::mdns::MdnsService;
@@ -188,13 +188,18 @@ pub fn run() {
 
                 let ws_port = ws_server.port();
 
+                if !ws_server.keyboard_healthy() {
+                    log::warn!("键盘输入不可用：请授予辅助功能权限");
+                    let _ = handle.emit("keyboard-permission-needed", ());
+                }
+
                 // Load blocklist from config
                 let blocklist = config.blocklist.clone();
                 ws_server.set_blocklist(blocklist).await;
 
                 let client_registry = ws_server.client_registry();
 
-                let phone_server = match PhoneServer::start(ws_port).await {
+                let phone_server = match PhoneServer::start().await {
                     Ok(s) => s,
                     Err(e) => {
                         log::error!("Failed to start HTTP server: {e}");
