@@ -71,6 +71,65 @@ body {
 }
 .toggle.active::after { transform: translateX(18px); }
 .hint { font-size: 11px; color: #666; text-align: center; margin-top: 4px; }
+.clients-section {
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.clients-title {
+  font-size:13px;
+  color:#888;
+  text-align:center;
+}
+.clients-list {
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  max-height:200px;
+  overflow-y:auto;
+}
+.client-card {
+  background:rgba(255,255,255,.06);
+  border-radius:10px;
+  padding:10px 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.client-info {
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  flex:1;
+  min-width:0;
+}
+.client-name {
+  font-size:13px;
+  font-weight:500;
+  color:#c4b5fd;
+}
+.client-ip {
+  font-size:11px;
+  color:#666;
+}
+.client-actions {
+  display:flex;
+  gap:6px;
+  flex-shrink:0;
+}
+.btn-disconnect,.btn-block {
+  border:none;
+  border-radius:6px;
+  padding:4px 10px;
+  font-size:11px;
+  cursor:pointer;
+  transition:opacity .15s;
+}
+.btn-disconnect { background:#3b3b5c; color:#ccc; }
+.btn-disconnect:hover { background:#4b4b6c; }
+.btn-block { background:#5c2e3a; color:#f87171; }
+.btn-block:hover { background:#6c3e4a; }
 </style>
 </head>
 <body>
@@ -79,6 +138,10 @@ body {
   <div class="device-name" id="deviceName">--</div>
   <div class="qr-box"><img id="qrImage" src="" alt="QR Code"></div>
   <div class="address" id="address">--</div>
+  <div class="clients-section" id="clientsSection" style="display:none">
+    <div class="clients-title">已连接设备</div>
+    <div class="clients-list" id="clientsList"></div>
+  </div>
   <div class="privacy-row">
     <span>允许被发现</span>
     <div class="toggle active" id="privacyToggle"></div>
@@ -101,6 +164,60 @@ const toggle = document.getElementById('privacyToggle');
 toggle.addEventListener('click', async () => {
   const enabled = await invoke('toggle_privacy');
   toggle.classList.toggle('active', enabled);
+});
+
+const { listen } = window.__TAURI__.event;
+
+function renderDeviceList(clients) {
+  var section = document.getElementById('clientsSection');
+  var list = document.getElementById('clientsList');
+  if (!clients || clients.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'flex';
+  list.innerHTML = clients.map(function(c) {
+    return '<div class="client-card" data-id="' + c.id + '">' +
+      '<div class="client-info">' +
+        '<div class="client-name">' + escapeHtml(c.device_name) + '</div>' +
+        '<div class="client-ip">' + escapeHtml(c.ip) + '</div>' +
+      '</div>' +
+      '<div class="client-actions">' +
+        '<button class="btn-disconnect" onclick="disconnectClient(\'' + c.id + '\')">断开</button>' +
+        '<button class="btn-block" onclick="blockClient(\'' + c.id + '\')">拉黑</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function escapeHtml(s) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(s));
+  return div.innerHTML;
+}
+
+function disconnectClient(id) {
+  invoke('disconnect_device', { clientId: id }).catch(function(e) {
+    console.error('disconnect failed', e);
+  });
+}
+
+function blockClient(id) {
+  invoke('block_device', { clientId: id }).catch(function(e) {
+    console.error('block failed', e);
+  });
+}
+
+// Load initial connected devices
+invoke('get_connected_devices').then(function(raw) {
+  renderDeviceList(JSON.parse(raw));
+}).catch(function(e) {
+  console.error('get_connected_devices failed', e);
+});
+
+// Listen for real-time updates
+listen('clients-changed', function(event) {
+  renderDeviceList(event.payload);
 });
 </script>
 </body>
