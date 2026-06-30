@@ -20,7 +20,21 @@
 ## 构建
 
 ```bash
-cargo build --release
+make release          # 当前平台
+make release-macos    # macOS universal .app
+make release-windows  # Windows GNU .exe
+make release-all      # macOS + Windows
 ```
 
-编译产物在 `target/release/lantype`（或 `lantype.exe`），单二进制，无需安装。
+交叉编译依赖 `zig` 和 `cargo-zigbuild`：
+
+```bash
+cargo install cargo-zigbuild
+rustup target add x86_64-apple-darwin aarch64-apple-darwin x86_64-pc-windows-gnu
+```
+
+产物路径：
+
+- macOS: `target/universal2-apple-darwin/release/LanType.app`
+- Windows: `target/x86_64-pc-windows-gnu/release/lantype.exe`
+- 当前平台: `target/release/lantype`、`target/release/lantype.exe` 或 `target/release/LanType.app`

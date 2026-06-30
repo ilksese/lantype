@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
-# package.sh — Create macOS .app bundle after cargo build --release
+# package.sh — Create macOS .app bundle after release build
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BINARY="$PROJECT_DIR/target/release/lantype"
-APP_DIR="$PROJECT_DIR/target/release/LanType.app"
+TARGET="${1:-}"
+
+if [[ -n "$TARGET" ]]; then
+  RELEASE_DIR="$PROJECT_DIR/target/$TARGET/release"
+else
+  RELEASE_DIR="$PROJECT_DIR/target/release"
+fi
+
+BINARY="$RELEASE_DIR/lantype"
+APP_DIR="$RELEASE_DIR/LanType.app"
 
 echo "==> Cleaning old .app bundle..."
 rm -rf "$APP_DIR"
