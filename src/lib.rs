@@ -8,17 +8,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::core::config::{resolve_device_name, Config};
+use crate::core::config::{resolve_device_name, Config, PortConfig};
 use crate::core::mdns::MdnsService;
 use crate::core::ws::{ClientRegistry, WsServer};
-use crate::phone::PhoneServer;
+use crate::phone::{serve_phone_page, PHONE_HTML};
 use crate::tray::PrivacyState;
+use tokio::io::AsyncReadExt;
+use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 struct AppState {
     ws_server: Arc<Mutex<WsServer>>,
     mdns: Arc<Mutex<MdnsService>>,
-    http_port: u16,
+    port: u16,
     device_name: String,
     config: Config,
     client_registry: Arc<ClientRegistry>,
@@ -29,15 +31,10 @@ async fn get_connection_info(
     _app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    let ws = state.ws_server.lock().await;
-    let ws_port = ws.port();
-    let http_port = state.http_port;
-
+    let port = state.port;
     let device_name = state.device_name.clone();
-
     let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
-
-    let url = format!("http://{local_ip}:{http_port}/?ws={ws_port}");
+    let url = format!("http://{local_ip}:{port}/?ws={port}");
     info!("Phone page URL: {url}");
 
     let data_url = qr::qr_data_url(&url)?;
@@ -45,7 +42,7 @@ async fn get_connection_info(
     let json = serde_json::json!({
         "qrDataUrl": data_url,
         "deviceName": device_name,
-        "address": format!("ws://{}:{}", local_ip, ws_port),
+        "address": format!("ws://{}:{}", local_ip, port),
         "httpUrl": url,
     });
 
@@ -175,49 +172,123 @@ pub fn run() {
 
             let device_name_clone = device_name.clone();
             let config = config.clone();
-            let ws_port_config = match config.port {
-                crate::core::config::PortConfig::Auto => None,
-                crate::core::config::PortConfig::Fixed(port) => Some(port),
-            };
 
             tauri::async_runtime::spawn(async move {
-                let mut ws_server = WsServer::new(device_name_clone.clone());
-                if let Err(e) = ws_server.start(ws_port_config, handle.clone()).await {
-                    log::error!("Failed to start WS server: {e}");
-                    return;
-                }
+                // Determine the listen port:
+                //   http_port > port > random
+                let listen_port = match &config.http_port {
+                    PortConfig::Fixed(p) => *p,
+                    PortConfig::Auto => match &config.port {
+                        PortConfig::Fixed(p) => *p,
+                        PortConfig::Auto => 0,
+                    },
+                };
 
-                let ws_port = ws_server.port();
+                // Single TcpListener for both HTTP and WebSocket
+                let listener = if listen_port == 0 {
+                    match TcpListener::bind("0.0.0.0:0").await {
+                        Ok(l) => l,
+                        Err(e) => {
+                            log::error!("Failed to bind random port: {e}");
+                            return;
+                        }
+                    }
+                } else {
+                    match TcpListener::bind(("0.0.0.0", listen_port)).await {
+                        Ok(l) => {
+                            log::info!("Server bound to configured port {listen_port}");
+                            l
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to bind to configured port {listen_port} ({e}), falling back to random port");
+                            match TcpListener::bind("0.0.0.0:0").await {
+                                Ok(l) => l,
+                                Err(e) => {
+                                    log::error!("Failed to bind fallback port: {e}");
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                };
 
-                if !ws_server.keyboard_healthy() {
+                let actual_port = listener.local_addr().map(|a| a.port()).unwrap_or(0);
+                log::info!("Server listening on port {actual_port}");
+
+                let ws_server = Arc::new(Mutex::new(WsServer::new(
+                    device_name_clone.clone(),
+                    actual_port,
+                )));
+
+                // Load blocklist
+                let blocklist = config.blocklist.clone();
+                ws_server.lock().await.set_blocklist(blocklist).await;
+
+                if !ws_server.lock().await.keyboard_healthy() {
                     log::warn!("键盘输入不可用：请授予辅助功能权限");
                     let _ = handle.emit("keyboard-permission-needed", ());
                 }
 
-                // Load blocklist from config
-                let blocklist = config.blocklist.clone();
-                ws_server.set_blocklist(blocklist).await;
+                let client_registry = ws_server.lock().await.client_registry();
 
-                let client_registry = ws_server.client_registry();
+                // Unified accept loop
+                let listener = Arc::new(listener);
+                let ws_server_ref = ws_server.clone();
+                let handle_ref = handle.clone();
+                let html = PHONE_HTML.to_owned();
 
-                let phone_server = match PhoneServer::start().await {
-                    Ok(s) => s,
-                    Err(e) => {
-                        log::error!("Failed to start HTTP server: {e}");
-                        return;
+                tokio::spawn(async move {
+                    loop {
+                        let (mut stream, addr) = match listener.accept().await {
+                            Ok(v) => v,
+                            Err(e) => {
+                                log::error!("Accept error: {e}");
+                                continue;
+                            }
+                        };
+
+                        let ws = ws_server_ref.clone();
+                        let h = handle_ref.clone();
+                        let html = html.clone();
+
+                        tokio::spawn(async move {
+                            // Read first chunk to classify the connection
+                            let mut buf = vec![0u8; 4096];
+                            let n = match stream.read(&mut buf).await {
+                                Ok(0) => return,
+                                Ok(n) => n,
+                                Err(e) => {
+                                    log::error!("Read error from {addr}: {e}");
+                                    return;
+                                }
+                            };
+                            buf.truncate(n);
+
+                            let is_ws = buf
+                                .windows(b"Upgrade: websocket".len())
+                                .any(|w| w.eq_ignore_ascii_case(b"Upgrade: websocket"));
+
+                            if is_ws {
+                                ws.lock()
+                                    .await
+                                    .accept_connection(stream, addr, buf, h)
+                                    .await;
+                            } else {
+                                serve_phone_page(stream, addr, buf, html).await;
+                            }
+                        });
                     }
-                };
-                let http_port = phone_server.lock().await.port();
+                });
 
-                let mut mdns = MdnsService::new(device_name_clone.clone(), ws_port);
+                let mut mdns = MdnsService::new(device_name_clone.clone(), actual_port);
                 if let Err(e) = mdns.start() {
                     log::error!("Failed to start mDNS: {e}");
                 }
 
                 handle.manage(AppState {
-                    ws_server: Arc::new(Mutex::new(ws_server)),
+                    ws_server,
                     mdns: Arc::new(Mutex::new(mdns)),
-                    http_port,
+                    port: actual_port,
                     device_name: device_name_clone,
                     config,
                     client_registry,

@@ -30,6 +30,8 @@ pub struct BlockEntry {
 pub struct Config {
     #[serde(default)]
     pub port: PortConfig,
+    #[serde(default)]
+    pub http_port: PortConfig,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nickname: Option<String>,
     #[serde(default)]
@@ -40,6 +42,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             port: PortConfig::Auto,
+            http_port: PortConfig::Auto,
             nickname: None,
             blocklist: Vec::new(),
         }

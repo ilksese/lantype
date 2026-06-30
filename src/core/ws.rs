@@ -1,13 +1,17 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::io::IoSlice;
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use futures_util::{SinkExt, StreamExt};
 use log::{error, info};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::net::TcpStream;
 use tokio::sync::{watch, RwLock};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
@@ -44,18 +48,16 @@ pub struct WsServer {
     port: u16,
     keyboard: Arc<KeyboardInjector>,
     device_name: String,
-    listener: Option<Arc<TcpListener>>,
     client_registry: Arc<ClientRegistry>,
     blocklist: Arc<RwLock<Vec<BlockEntry>>>,
 }
 
 impl WsServer {
-    pub fn new(device_name: String) -> Self {
+    pub fn new(device_name: String, port: u16) -> Self {
         Self {
-            port: 0,
+            port,
             keyboard: Arc::new(KeyboardInjector::new()),
             device_name,
-            listener: None,
             client_registry: Arc::new(ClientRegistry::new()),
             blocklist: Arc::new(RwLock::new(Vec::new())),
         }
@@ -81,95 +83,42 @@ impl WsServer {
         *self.blocklist.write().await = blocklist;
     }
 
-    /// Start the WebSocket server.
-    ///
-    /// If `port_override` is `Some(port)`, try binding to that port first;
-    /// on failure, fall back to a random port with a warning.
-    /// If `None`, bind to a random port (existing behaviour).
-    pub async fn start(
-        &mut self,
-        port_override: Option<u16>,
+    pub async fn accept_connection(
+        &self,
+        stream: TcpStream,
+        addr: SocketAddr,
+        first_chunk: Vec<u8>,
         app_handle: AppHandle,
-    ) -> Result<(), String> {
-        let listener = match port_override {
-            Some(port) => {
-                match TcpListener::bind(("0.0.0.0", port)).await {
-                    Ok(l) => {
-                        log::info!("WS server bound to configured port {port}");
-                        l
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to bind to configured port {port} ({e}), falling back to random port");
-                        TcpListener::bind("0.0.0.0:0")
-                            .await
-                            .map_err(|e| format!("bind fallback: {e}"))?
-                    }
-                }
-            }
-            None => {
-                TcpListener::bind("0.0.0.0:0")
-                    .await
-                    .map_err(|e| format!("bind: {e}"))?
+    ) {
+        let prepend = PrependStream::new(stream, first_chunk);
+        let ws_stream = match accept_async(prepend).await {
+            Ok(ws) => ws,
+            Err(e) => {
+                error!("WS handshake error from {addr}: {e}");
+                return;
             }
         };
-        self.port = listener.local_addr().map_err(|e| format!("local addr: {e}"))?.port();
-        let listener = Arc::new(listener);
-        self.listener = Some(listener.clone());
 
         let keyboard = self.keyboard.clone();
         let device_name = self.device_name.clone();
         let client_registry = self.client_registry.clone();
         let blocklist = self.blocklist.clone();
 
-        tokio::spawn(async move {
-            info!("WS server listening on port {}", listener.local_addr().unwrap().port());
-            loop {
-                match listener.accept().await {
-                    Ok((stream, addr)) => {
-                        info!("Connection from {}", addr);
-                        let keyboard = keyboard.clone();
-                        let device_name = device_name.clone();
-                        let client_registry = client_registry.clone();
-                        let blocklist = blocklist.clone();
-                        let app_handle = app_handle.clone();
-                        tokio::spawn(handle_client(
-                            stream,
-                            addr,
-                            keyboard,
-                            device_name,
-                            client_registry,
-                            blocklist,
-                            app_handle,
-                        ));
-                    }
-                    Err(e) => {
-                        error!("Accept error: {e}");
-                    }
-                }
-            }
-        });
-
-        Ok(())
+        handle_ws_client(ws_stream, addr, keyboard, device_name, client_registry, blocklist, app_handle).await;
     }
 }
 
-async fn handle_client(
-    stream: TcpStream,
+async fn handle_ws_client<S>(
+    ws_stream: tokio_tungstenite::WebSocketStream<S>,
     addr: SocketAddr,
     keyboard: Arc<KeyboardInjector>,
     device_name: String,
     client_registry: Arc<ClientRegistry>,
     blocklist: Arc<RwLock<Vec<BlockEntry>>>,
     app_handle: AppHandle,
-) {
-    let ws_stream = match accept_async(stream).await {
-        Ok(ws) => ws,
-        Err(e) => {
-            error!("WS handshake error from {addr}: {e}");
-            return;
-        }
-    };
-
+) where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     let (mut write, mut read) = ws_stream.split();
 
     // Generate client id and send Connected message
@@ -369,3 +318,75 @@ async fn handle_client(
 
     info!("Connection closed: {addr}");
 }
+
+/// Wraps a `TcpStream` and prepends already-read bytes so that
+/// downstream consumers (e.g. tokio-tungstenite) see the complete
+/// initial request as if it had not been consumed.
+struct PrependStream {
+    stream: TcpStream,
+    buf: Vec<u8>,
+    pos: usize,
+}
+
+impl PrependStream {
+    fn new(stream: TcpStream, buf: Vec<u8>) -> Self {
+        Self { stream, buf, pos: 0 }
+    }
+}
+
+impl AsyncRead for PrependStream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        out: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        // Serve from the prepend buffer first
+        if self.pos < self.buf.len() {
+            let avail = &self.buf[self.pos..];
+            let len = std::cmp::min(avail.len(), out.remaining());
+            out.put_slice(&avail[..len]);
+            self.pos += len;
+            return Poll::Ready(Ok(()));
+        }
+        // Then delegate to the underlying stream
+        Pin::new(&mut self.stream).poll_read(cx, out)
+    }
+}
+
+impl AsyncWrite for PrependStream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        Pin::new(&mut self.stream).poll_write(cx, buf)
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.stream).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.stream).poll_shutdown(cx)
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[IoSlice<'_>],
+    ) -> Poll<std::io::Result<usize>> {
+        Pin::new(&mut self.stream).poll_write_vectored(cx, bufs)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.stream.is_write_vectored()
+    }
+}
+
+impl Unpin for PrependStream {}
