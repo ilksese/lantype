@@ -3,20 +3,25 @@
 ## Build & Run
 
 ```bash
-make release    # builds + auto-packages for current platform
+make release          # builds + auto-packages for current platform
+make release-all      # builds macOS + Windows artifacts
+make release-macos    # builds macOS universal .app via cargo-zigbuild
+make release-windows  # builds Windows GNU .exe via cargo-zigbuild
 ```
 
 Or step by step:
 
 ```bash
 cargo build --release    # compile only
-./package.sh             # macOS: wrap into .app bundle (optional, make does it)
+./package.sh             # macOS: wrap target/release into .app bundle
+./package.sh universal2-apple-darwin  # wrap target/universal2-apple-darwin/release
 ```
 
-- **macOS**: `make release` → produces `target/release/LanType.app` with embedded icon
-- **Windows**: `make release` → `target/release/lantype.exe` (icon embedded by tauri_build, no extra step)
+- **macOS**: `make release` → produces `target/release/LanType.app`; `make release-macos` → produces `target/universal2-apple-darwin/release/LanType.app`
+- **Windows**: `make release-windows` → `target/x86_64-pc-windows-gnu/release/lantype.exe`
 - **Linux**: `make release` → `target/release/lantype`
 - `cargo tauri build` is NOT available — use `make release` instead.
+- Cross-compile dependencies: `zig`, `cargo-zigbuild`, Rust targets `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-gnu`.
 - Proxy at `127.0.0.1:7897`. Rust crate mirror: 中科大 (system-level `.cargo/config.toml`).
 - Build demands: `HTTP_PROXY`, `HTTPS_PROXY`, or direct network for crate download.
 
