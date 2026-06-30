@@ -10,11 +10,12 @@
     "icon": ["icons/icon.png"]
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "LanType",
         "width": 320,
-        "height": 460,
+        "height": 520,
         "center": true,
         "decorations": true,
         "resizable": false,

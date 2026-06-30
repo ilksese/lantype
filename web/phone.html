@@ -15,7 +15,14 @@ body{
   display:flex;align-items:center;justify-content:space-between;
   padding:16px 20px 12px;border-bottom:1px solid rgba(255,255,255,.06)
 }
-.header h1{font-size:18px;font-weight:600;letter-spacing:.5px;color:#c4b5fd}
+.header-left{display:flex;align-items:center;gap:10px}
+.header-left h1{font-size:18px;font-weight:600;letter-spacing:.5px;color:#c4b5fd}
+.btn-settings{
+  border:none;background:none;color:#666;font-size:20px;cursor:pointer;
+  padding:2px;line-height:1;transition:color .2s
+}
+.btn-settings:active{color:#c4b5fd}
+
 .status{display:flex;align-items:center;gap:6px;font-size:13px;color:#888;transition:color .3s}
 .status .dot{
   width:8px;height:8px;border-radius:50%;
@@ -30,7 +37,7 @@ body{
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .device-row{text-align:center;padding:10px 20px 6px;font-size:13px;color:#666;min-height:36px}
 .device-row .name{color:#a78bfa;font-weight:500}
-.input-wrap{flex:1;display:flex;padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+.input-wrap{flex:1;display:flex;padding:12px 16px calc(12px + env(safe-area-inset-bottom));position:relative}
 textarea{
   flex:1;width:100%;resize:none;border:none;outline:none;
   font-size:22px;line-height:1.6;padding:16px 18px;
@@ -40,12 +47,66 @@ textarea{
 textarea:focus{background:rgba(255,255,255,.09)}
 textarea::placeholder{color:#555}
 textarea:disabled{opacity:.4;cursor:not-allowed}
+.btn-bar{
+  position:fixed;bottom:24px;right:20px;z-index:100;
+  display:flex;gap:10px;align-items:center
+}
+.btn-send,.btn-clear,.btn-enter{
+  border:none;border-radius:50%;width:44px;height:44px;
+  font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:opacity .2s,transform .1s;box-shadow:0 2px 8px rgba(0,0,0,.3)
+}
+.btn-send:active,.btn-clear:active,.btn-enter:active{transform:scale(.92)}
+.btn-send{background:#7c3aed;color:#fff}
+.btn-send:disabled{opacity:.3;cursor:not-allowed}
+.btn-clear{background:rgba(255,255,255,.1);color:#999}
+.btn-clear:active{background:rgba(255,255,255,.2);color:#eee}
+.btn-clear.hidden{display:none}
+.btn-enter{background:rgba(255,255,255,.15);color:#ddd;font-size:14px;font-weight:600}
+.btn-enter:active{background:rgba(255,255,255,.25);color:#fff}
+.btn-enter:disabled{opacity:.3;cursor:not-allowed}
 .footer{text-align:center;padding:10px 20px 16px;font-size:11px;color:#444}
+
+/* settings overlay */
+.overlay{
+  position:fixed;top:0;left:0;width:100%;height:100%;z-index:200;
+  background:rgba(0,0,0,.5);display:none;align-items:flex-start;justify-content:center;
+  padding-top:80px
+}
+.overlay.open{display:flex}
+.settings-panel{
+  background:#262645;border-radius:16px;width:300px;max-width:90vw;
+  padding:20px;box-shadow:0 8px 32px rgba(0,0,0,.4)
+}
+.settings-panel h2{font-size:16px;font-weight:600;color:#c4b5fd;margin-bottom:16px}
+.settings-row{
+  display:flex;align-items:center;justify-content:space-between;padding:12px 0
+}
+.settings-row+.settings-row{border-top:1px solid rgba(255,255,255,.06)}
+.settings-label{font-size:14px;color:#ccc}
+.toggle{
+  position:relative;width:42px;height:24px;background:#444;
+  border-radius:12px;cursor:pointer;transition:background .2s;flex-shrink:0
+}
+.toggle.active{background:#7c3aed}
+.toggle::after{
+  content:'';position:absolute;top:2px;left:2px;
+  width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .2s
+}
+.toggle.active::after{transform:translateX(18px)}
+.btn-close-settings{
+  display:block;margin:16px auto 0;border:none;background:rgba(255,255,255,.08);
+  color:#999;border-radius:8px;padding:8px 24px;font-size:13px;cursor:pointer;transition:background .2s
+}
+.btn-close-settings:active{background:rgba(255,255,255,.15)}
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>LanType</h1>
+  <div class="header-left">
+    <h1>LanType</h1>
+    <button class="btn-settings" id="btnSettings" aria-label="设置">&#9881;</button>
+  </div>
   <div class="status disconnected" id="status">
     <span class="dot"></span>
     <span id="statusText">未连接</span>
@@ -57,7 +118,23 @@ textarea:disabled{opacity:.4;cursor:not-allowed}
 <div class="input-wrap">
   <textarea id="input" placeholder="在此输入文字..." disabled autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
 </div>
+<div class="btn-bar">
+  <button class="btn-enter" id="btnEnter" aria-label="回车" disabled>↵</button>
+  <button class="btn-send" id="btnSend" aria-label="发送">➤</button>
+  <button class="btn-clear hidden" id="btnClear" aria-label="清空">✕</button>
+</div>
 <div class="footer">文字实时同步到桌面端</div>
+
+<div class="overlay" id="settingsOverlay">
+  <div class="settings-panel">
+    <h2>设置</h2>
+    <div class="settings-row">
+      <span class="settings-label">自动同步</span>
+      <div class="toggle" id="autoSyncToggle"></div>
+    </div>
+    <button class="btn-close-settings" id="btnCloseSettings">关闭</button>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -67,10 +144,27 @@ textarea:disabled{opacity:.4;cursor:not-allowed}
   var input=document.getElementById('input');
   var ws=null;
   var reconnectTimer=null;
+  var autoSync=false;
 
   function setStatus(mode,text){
     statusEl.className='status '+mode;
     statusText.textContent=text;
+  }
+
+  function getFriendlyName() {
+    var ua = navigator.userAgent;
+    var browser = '浏览器';
+    if (ua.indexOf('Chrome') !== -1 && ua.indexOf('Edg') === -1) browser = 'Chrome';
+    else if (ua.indexOf('Safari') !== -1 && ua.indexOf('Chrome') === -1) browser = 'Safari';
+    else if (ua.indexOf('Edg') !== -1) browser = 'Edge';
+    else if (ua.indexOf('Firefox') !== -1) browser = 'Firefox';
+    var os = '未知设备';
+    if (ua.indexOf('iPhone') !== -1 || ua.indexOf('iPad') !== -1) os = 'iOS';
+    else if (ua.indexOf('Android') !== -1) os = 'Android';
+    else if (ua.indexOf('Mac') !== -1) os = 'macOS';
+    else if (ua.indexOf('Windows') !== -1) os = 'Windows';
+    else if (ua.indexOf('Linux') !== -1) os = 'Linux';
+    return browser + ' · ' + os;
   }
 
   function connect(){
@@ -87,6 +181,8 @@ textarea:disabled{opacity:.4;cursor:not-allowed}
       setStatus('connected','已连接');
       input.disabled=false;
       input.focus();
+      ws.send(JSON.stringify({type:'hello', device_name: getFriendlyName()}));
+      updateButtons();
     };
 
     ws.onmessage=function(e){
@@ -98,10 +194,18 @@ textarea:disabled{opacity:.4;cursor:not-allowed}
       }catch(err){}
     };
 
-    ws.onclose=function(){
+    ws.onclose=function(e){
+      if (e.code === 1008) {
+        setStatus('disconnected', '已被拉黑');
+        input.disabled = true;
+        deviceLabel.textContent = '此设备已被拉黑，无法连接';
+        updateButtons();
+        return;
+      }
       setStatus('disconnected','已断开');
       input.disabled=true;
       deviceLabel.textContent='连接已断开，正在重连...';
+      updateButtons();
       if(reconnectTimer)clearTimeout(reconnectTimer);
       reconnectTimer=setTimeout(connect,3000);
     };
@@ -130,10 +234,65 @@ textarea:disabled{opacity:.4;cursor:not-allowed}
   input.addEventListener('compositionstart',function(){isComposing=true});
   input.addEventListener('compositionend',function(){
     isComposing=false;
-    sendDiff(input.value);
+    if(autoSync)sendDiff(input.value);
+    updateButtons();
   });
   input.addEventListener('input',function(){
-    if(!isComposing)sendDiff(input.value);
+    if(!isComposing&&autoSync)sendDiff(input.value);
+    updateButtons();
+  });
+
+  var btnClear=document.getElementById('btnClear');
+  var btnSend=document.getElementById('btnSend');
+  var btnEnter=document.getElementById('btnEnter');
+  function updateButtons(){
+    var hasText=input.value.length>0;
+    btnClear.classList.toggle('hidden',!hasText);
+    btnSend.style.display=autoSync?'none':'';
+    btnSend.disabled=!(ws&&ws.readyState===WebSocket.OPEN&&hasText);
+    btnEnter.disabled=!(ws&&ws.readyState===WebSocket.OPEN);
+  }
+  btnClear.addEventListener('click',function(){
+    input.value='';
+    sendDiff('');
+    prevText='';
+    input.focus();
+    updateButtons();
+  });
+  btnEnter.addEventListener('click',function(){
+    if(!ws||ws.readyState!==WebSocket.OPEN)return;
+    ws.send(JSON.stringify({type:'type',text:'\n'}));
+    input.focus();
+  });
+  btnSend.addEventListener('click',function(){
+    if(!ws||ws.readyState!==WebSocket.OPEN)return;
+    var text=input.value;
+    if(!text)return;
+    ws.send(JSON.stringify({type:'type',text:text}));
+    input.value='';
+    prevText='';
+    input.focus();
+    updateButtons();
+  });
+
+  // settings
+  var settingsOverlay=document.getElementById('settingsOverlay');
+  var autoSyncToggle=document.getElementById('autoSyncToggle');
+  function updateAutoSyncUI(){
+    autoSyncToggle.classList.toggle('active',autoSync);
+  }
+  document.getElementById('btnSettings').addEventListener('click',function(){
+    settingsOverlay.classList.add('open');
+  });
+  document.getElementById('btnCloseSettings').addEventListener('click',function(){
+    settingsOverlay.classList.remove('open');
+  });
+  settingsOverlay.addEventListener('click',function(e){
+    if(e.target===settingsOverlay)settingsOverlay.classList.remove('open');
+  });
+  autoSyncToggle.addEventListener('click',function(){
+    autoSync=!autoSync;
+    updateAutoSyncUI();
   });
 
   connect();

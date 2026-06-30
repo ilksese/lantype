@@ -2,9 +2,9 @@
 #   make release  — build + auto-package for current platform
 #   make clean    — remove build artifacts
 
-.PHONY: release clean
+.PHONY: release clean phone
 
-release:
+release: phone
 	cargo build --release
 ifeq ($(shell uname -s),Darwin)
 	@echo "==> macOS detected, creating .app bundle..."
@@ -23,6 +23,10 @@ else ifeq ($(OS),Windows_NT)
 else
 	@echo "==> Linux: binary ready at target/release/lantype"
 endif
+
+phone:
+	@echo "==> Building phone page (Preact + Vite)..."
+	@npm --prefix web/phone run build
 
 clean:
 	cargo clean

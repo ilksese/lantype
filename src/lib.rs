@@ -6,11 +6,11 @@ pub mod tray;
 use log::info;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::core::config::{resolve_device_name, Config};
 use crate::core::mdns::MdnsService;
-use crate::core::ws::WsServer;
+use crate::core::ws::{ClientRegistry, WsServer};
 use crate::phone::PhoneServer;
 use crate::tray::PrivacyState;
 use tokio::sync::Mutex;
@@ -20,8 +20,8 @@ struct AppState {
     mdns: Arc<Mutex<MdnsService>>,
     http_port: u16,
     device_name: String,
-    #[allow(dead_code)]
     config: Config,
+    client_registry: Arc<ClientRegistry>,
 }
 
 #[tauri::command]
@@ -94,6 +94,69 @@ fn get_local_ip() -> Option<String> {
     None
 }
 
+#[tauri::command]
+async fn get_connected_devices(state: State<'_, AppState>) -> Result<String, String> {
+    let clients = state.client_registry.clients.read().await;
+    serde_json::to_string(&*clients).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn disconnect_device(
+    _app: AppHandle,
+    state: State<'_, AppState>,
+    client_id: String,
+) -> Result<(), String> {
+    let tx = {
+        let mut txs = state.client_registry.shutdown_txs.write().await;
+        txs.remove(&client_id)
+    };
+    match tx {
+        Some(tx) => {
+            let _ = tx.send(true);
+            Ok(())
+        }
+        None => Err("Client not found".to_string()),
+    }
+}
+
+#[tauri::command]
+async fn block_device(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    client_id: String,
+) -> Result<(), String> {
+    // Find client info
+    let entry = {
+        let clients = state.client_registry.clients.read().await;
+        clients.iter().find(|c| c.id == client_id).cloned()
+    };
+    let Some(info) = entry else {
+        return Err("Client not found".to_string());
+    };
+
+    // Update WsServer blocklist (source of truth) and save to disk
+    let block_entry = crate::core::config::BlockEntry {
+        ip: info.ip.clone(),
+        device_name: info.device_name.clone(),
+    };
+    let blocklist = {
+        let mut ws = state.ws_server.lock().await;
+        let mut current = ws.blocklist().await;
+        current.push(block_entry);
+        ws.set_blocklist(current.clone()).await;
+        current
+    };
+
+    let mut config = state.config.clone();
+    config.blocklist = blocklist;
+    config
+        .save()
+        .map_err(|e| format!("Failed to save blocklist: {e}"))?;
+
+    // Disconnect the client
+    disconnect_device(app, state, client_id).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
@@ -118,14 +181,25 @@ pub fn run() {
 
             tauri::async_runtime::spawn(async move {
                 let mut ws_server = WsServer::new(device_name_clone.clone());
-                if let Err(e) = ws_server.start(ws_port_config).await {
+                if let Err(e) = ws_server.start(ws_port_config, handle.clone()).await {
                     log::error!("Failed to start WS server: {e}");
                     return;
                 }
 
                 let ws_port = ws_server.port();
 
-                let phone_server = match PhoneServer::start(ws_port).await {
+                if !ws_server.keyboard_healthy() {
+                    log::warn!("键盘输入不可用：请授予辅助功能权限");
+                    let _ = handle.emit("keyboard-permission-needed", ());
+                }
+
+                // Load blocklist from config
+                let blocklist = config.blocklist.clone();
+                ws_server.set_blocklist(blocklist).await;
+
+                let client_registry = ws_server.client_registry();
+
+                let phone_server = match PhoneServer::start().await {
                     Ok(s) => s,
                     Err(e) => {
                         log::error!("Failed to start HTTP server: {e}");
@@ -145,6 +219,7 @@ pub fn run() {
                     http_port,
                     device_name: device_name_clone,
                     config,
+                    client_registry,
                 });
             });
 
@@ -161,6 +236,9 @@ pub fn run() {
             get_connection_info,
             get_privacy_enabled,
             toggle_privacy,
+            get_connected_devices,
+            disconnect_device,
+            block_device,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
