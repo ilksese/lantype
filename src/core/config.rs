@@ -30,7 +30,7 @@ pub struct BlockEntry {
 pub struct Config {
     #[serde(default)]
     pub port: PortConfig,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nickname: Option<String>,
     #[serde(default)]
     pub blocklist: Vec<BlockEntry>,
