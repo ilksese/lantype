@@ -163,6 +163,7 @@ pub fn run() {
 
     let config = Config::load();
     let device_name = resolve_device_name(&config);
+    let config = Config::load();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
