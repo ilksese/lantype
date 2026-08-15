@@ -19,6 +19,8 @@ pub enum ClientMessage {
     Ping,
     #[serde(rename = "hello")]
     Hello { device_name: String },
+    #[serde(rename = "keys")]
+    Keys { modifiers: Vec<String>, key: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

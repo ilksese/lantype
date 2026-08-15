@@ -5,4 +5,10 @@ export interface ServerMessage {
   message?: string
 }
 
+export interface Shortcut {
+  id: string
+  modifiers: string[]
+  key: string
+}
+
 export type ClientStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'blacklisted'

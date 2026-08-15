@@ -309,6 +309,20 @@ async fn handle_ws_client<S>(
                                     }
                                 }
                             }
+                            Ok(ClientMessage::Keys { modifiers, key }) => {
+                                if !keyboard.is_healthy() {
+                                    let err_msg = protocol::serialize_server_message(
+                                        &ServerMessage::Error {
+                                            message: "辅助功能权限未授予，请在桌面端授权后重试".into(),
+                                        },
+                                    );
+                                    let _ = write.send(Message::Text(err_msg.into())).await;
+                                    continue;
+                                }
+                                if let Err(e) = keyboard.press_chord(modifiers, key).await {
+                                    error!("Press chord error: {e}");
+                                }
+                            }
                             Ok(ClientMessage::Hello{..}) => {
                                 // ignore duplicate hello
                             }
