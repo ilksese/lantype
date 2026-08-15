@@ -51,6 +51,7 @@ pub struct WsServer {
     device_name: String,
     client_registry: Arc<ClientRegistry>,
     blocklist: Arc<RwLock<Vec<BlockEntry>>>,
+    pin: RwLock<String>,
 }
 
 impl WsServer {
@@ -61,6 +62,7 @@ impl WsServer {
             device_name,
             client_registry: Arc::new(ClientRegistry::new()),
             blocklist: Arc::new(RwLock::new(Vec::new())),
+            pin: RwLock::new(String::new()),
         }
     }
 
@@ -84,6 +86,12 @@ impl WsServer {
         *self.blocklist.write().await = blocklist;
     }
 
+    /// Rotate the pairing PIN. Every subsequent new connection must present the
+    /// new PIN in its handshake URI (`?pin=...`) or it is rejected.
+    pub async fn set_pin(&self, pin: String) {
+        *self.pin.write().await = pin;
+    }
+
     pub async fn accept_connection(
         &self,
         stream: TcpStream,
@@ -91,6 +99,10 @@ impl WsServer {
         first_chunk: Vec<u8>,
         app_handle: AppHandle,
     ) {
+        // Grab the PIN presented in the WebSocket handshake before the chunk is
+        // consumed by the upgrade.
+        let presented_pin = request_pin(&first_chunk);
+
         let prepend = PrependStream::new(stream, first_chunk);
         let ws_stream = match accept_async(prepend).await {
             Ok(ws) => ws,
@@ -99,6 +111,25 @@ impl WsServer {
                 return;
             }
         };
+
+        // Pairing gate: without a valid one-time PIN a stranger can neither type
+        // nor stay connected, even if they discover the port (e.g. via mDNS).
+        let expected_pin = self.pin.read().await.clone();
+        if expected_pin.is_empty() || presented_pin.as_deref() != Some(expected_pin.as_str()) {
+            info!("Rejected connection from {addr}: missing or invalid pairing pin");
+            let (mut write, _read) = ws_stream.split();
+            let err = protocol::serialize_server_message(&ServerMessage::Error {
+                message: "配对码无效，请重新扫码后连接".into(),
+            });
+            let _ = write.send(Message::Text(err.into())).await;
+            let _ = write
+                .send(Message::Close(Some(CloseFrame {
+                    code: CloseCode::Library(1008),
+                    reason: Cow::Borrowed("invalid pin"),
+                })))
+                .await;
+            return;
+        }
 
         let keyboard = self.keyboard.clone();
         let device_name = self.device_name.clone();
@@ -337,6 +368,33 @@ async fn handle_ws_client<S>(
     }
 
     info!("Connection closed: {addr}");
+}
+
+/// Generate a fresh 6-digit pairing PIN for the current session.
+pub fn generate_pin() -> String {
+    let n = Uuid::new_v4().as_u128() % 1_000_000;
+    format!("{n:06}")
+}
+
+/// Extract the `pin` query parameter from the initial HTTP/WebSocket request
+/// line (e.g. `GET /?ws=1234&pin=482913 HTTP/1.1`).
+fn request_pin(first_chunk: &[u8]) -> Option<String> {
+    let request = std::str::from_utf8(first_chunk).ok()?;
+    let line = request.lines().next()?;
+    let mut parts = line.split_whitespace();
+    let method = parts.next()?;
+    if method != "GET" {
+        return None;
+    }
+    let target = parts.next()?;
+    let query = target.split_once('?')?.1;
+    for pair in query.split('&') {
+        let Some((k, v)) = pair.split_once('=') else { continue };
+        if k == "pin" {
+            return Some(v.to_string());
+        }
+    }
+    None
 }
 
 /// Wraps a `TcpStream` and prepends already-read bytes so that

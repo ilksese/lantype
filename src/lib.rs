@@ -9,7 +9,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::core::config::{resolve_device_name, Config, PortConfig};
 use crate::core::mdns::MdnsService;
-use crate::core::ws::{ClientRegistry, WsServer};
+use crate::core::ws::{generate_pin, ClientRegistry, WsServer};
 use crate::phone::{serve_phone_page, PHONE_HTML};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
@@ -32,7 +32,13 @@ async fn get_connection_info(
     let port = state.port;
     let device_name = state.device_name.clone();
     let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
-    let url = format!("http://{local_ip}:{port}/?ws={port}");
+
+    // Generate a fresh one-time pairing PIN and store it on the server so only
+    // the phone that scanned this QR can connect.
+    let pin = generate_pin();
+    state.ws_server.lock().await.set_pin(pin.clone()).await;
+
+    let url = format!("http://{local_ip}:{port}/?ws={port}&pin={pin}");
     info!("Phone page URL: {url}");
 
     let data_url = qr::qr_data_url(&url)?;
@@ -42,6 +48,7 @@ async fn get_connection_info(
         "deviceName": device_name,
         "address": format!("ws://{}:{}", local_ip, port),
         "httpUrl": url,
+        "pin": pin,
     });
 
     Ok(json.to_string())

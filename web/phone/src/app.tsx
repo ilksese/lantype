@@ -108,8 +108,9 @@ function useWebSocket() {
 
     const params = new URLSearchParams(window.location.search)
     const wsPort = params.get('ws') || '0'
+    const pin = params.get('pin') || ''
     const host = window.location.hostname
-    const url = 'ws://' + host + ':' + wsPort
+    const url = 'ws://' + host + ':' + wsPort + (pin ? '?pin=' + encodeURIComponent(pin) : '')
 
     setStatus('reconnecting')
     const ws = new WebSocket(url)
@@ -291,8 +292,8 @@ export function App() {
       ? <>已连接至 <span className={styles.deviceName}>{connectedDevice}</span></>
       : '已连接'
   } else if (status === 'blacklisted') {
-    statusText = '已被拉黑'
-    deviceText = '此设备已被拉黑，无法连接'
+    statusText = '连接被拒绝'
+    deviceText = errorMessage || '此设备已被拉黑，无法连接'
   } else if (status === 'disconnected') {
     statusText = '已断开'
     deviceText = '连接已断开，正在重连...'
