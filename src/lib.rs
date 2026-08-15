@@ -54,19 +54,23 @@ async fn get_connection_info(
     Ok(json.to_string())
 }
 
-/// Pick the IP used to reach the internet (default-route interface = real LAN),
-/// falling back to any private non-virtual IPv4.
+/// Pick the IP phones on the same LAN can reach: the address of the interface
+/// that owns the default route (robust, portable), falling back to any private
+/// IPv4 on this host.
 fn get_local_ip() -> Option<String> {
-    if let Ok(std::net::IpAddr::V4(ip)) = local_ip_address::local_ip() {
-        if !ip.is_loopback()
-            && !ip.is_link_local()
-            && is_private(&ip)
-            && !is_virtual_iface_by_ip(&ip)
-        {
-            return Some(ip.to_string());
+    if let Ok(iface) = default_net::get_default_interface() {
+        if let Some(ip) = iface.ipv4.first().map(|n| n.addr) {
+            if is_lan_ipv4(&ip) {
+                return Some(ip.to_string());
+            }
         }
     }
     get_lan_ips().into_iter().next()
+}
+
+/// A usable LAN IPv4: private (RFC1918), non-loopback, non-link-local.
+fn is_lan_ipv4(ip: &std::net::Ipv4Addr) -> bool {
+    !ip.is_loopback() && !ip.is_link_local() && is_private(ip)
 }
 
 fn is_private(ip: &std::net::Ipv4Addr) -> bool {
@@ -74,49 +78,17 @@ fn is_private(ip: &std::net::Ipv4Addr) -> bool {
     o[0] == 10 || (o[0] == 172 && (16..=31).contains(&o[1])) || (o[0] == 192 && o[1] == 168)
 }
 
-/// Detect virtual adapters by their assigned address (e.g. OpenVPN 10.8.x,
-/// VMware 192.168.x.y, Tailscale CGNAT 100.x).
-fn is_virtual_iface_by_ip(ip: &std::net::Ipv4Addr) -> bool {
-    let o = ip.octets();
-    // Tailscale / most WireGuard deployments use CGNAT 100.64.0.0/10.
-    o[0] == 100 && (64..=127).contains(&o[1])
-}
-
-/// Collect private, non-virtual IPv4 addresses on this host.
+/// Collect private, non-loopback IPv4 addresses on this host.
 fn get_lan_ips() -> Vec<String> {
     let mut ips: Vec<String> = Vec::new();
-    if let Ok(ifas) = local_ip_address::list_afinet_netifas() {
-        for (name, ip) in ifas {
-            if let std::net::IpAddr::V4(ip) = ip {
-                if ip.is_loopback() || ip.is_link_local() {
-                    continue;
-                }
-                if !is_private(&ip) || is_virtual_iface(&name) || is_virtual_iface_by_ip(&ip) {
-                    continue;
-                }
-                ips.push(ip.to_string());
+    for iface in default_net::get_interfaces() {
+        for net in iface.ipv4 {
+            if is_lan_ipv4(&net.addr) {
+                ips.push(net.addr.to_string());
             }
         }
     }
     ips
-}
-
-/// Recognize common virtual / VPN adapter names so they are skipped.
-fn is_virtual_iface(name: &str) -> bool {
-    let n = name.to_lowercase();
-    n.contains("vmnet")
-        || n.contains("vethernet")
-        || n.contains("virtualbox")
-        || n.contains("vbox")
-        || n.contains("tailscale")
-        || n.contains("wireguard")
-        || n.contains("tap-")
-        || n.contains("tun")
-        || n.contains("openvpn")
-        || n.contains("bluetooth")
-        || n.contains("docker")
-        || n.contains("loopback")
-        || n.contains("npcap")
 }
 
 #[tauri::command]
