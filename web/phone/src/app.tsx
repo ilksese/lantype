@@ -22,7 +22,7 @@ function getFriendlyName(): string {
   return browser + ' · ' + os
 }
 
-function useWebSocket() {
+function useWebSocket(nicknameRef: { current: string }) {
   const HEARTBEAT_INTERVAL_MS = 15000
   const PONG_TIMEOUT_MS = 5000
   const RECONNECT_DELAY_MS = 3000
@@ -135,7 +135,7 @@ function useWebSocket() {
     ws.onopen = () => {
       if (wsRef.current !== ws) return
       setStatus('connected')
-      ws.send(JSON.stringify({ type: 'hello', device_name: getFriendlyName() }))
+      ws.send(JSON.stringify({ type: 'hello', device_name: nicknameRef.current || getFriendlyName() }))
       clearHeartbeat()
       heartbeatRef.current = setInterval(sendPing, HEARTBEAT_INTERVAL_MS)
       sendPing()
@@ -189,8 +189,12 @@ function useWebSocket() {
     ws.send(JSON.stringify({ type: 'ping' }))
     if (pongTimeoutRef.current) clearTimeout(pongTimeoutRef.current)
     pongTimeoutRef.current = setTimeout(() => {
-      if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) {
-        ws.close()
+      // A missing pong means the socket is dead. Force a full reconnect
+      // rather than only ws.close(): the browser may not fire onclose for a
+      // half-open connection, leaving the UI stuck on "已连接" while sends
+      // silently drop.
+      if (wsRef.current === ws) {
+        connect(true)
       }
     }, PONG_TIMEOUT_MS)
   }, [connect, status])
@@ -206,9 +210,24 @@ function useWebSocket() {
 
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') ensureConnected()
+      // Waking from a long screen-off leaves a possibly-stale socket that the
+      // browser still reports as OPEN. Force a fresh connection (like a page
+      // refresh) so typing is reliably delivered to the receiver.
+      if (document.visibilityState === 'visible' && status !== 'blacklisted') {
+        connect(true)
+      }
     }
-    const onPageShow = () => ensureConnected()
+    const onPageShow = (e: PageTransitionEvent) => {
+      // Restoring from bfcache (e.persisted) can leave the WebSocket stale on
+      // any browser that supports the back/forward cache. Force a fresh
+      // connection there. Initial page load (persisted=false) is already
+      // handled by the connect effect, so only reconnect on bfcache restore.
+      if (e.persisted) {
+        if (status !== 'blacklisted') connect(true)
+      } else {
+        ensureConnected()
+      }
+    }
 
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('pageshow', onPageShow)
@@ -216,15 +235,24 @@ function useWebSocket() {
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('pageshow', onPageShow)
     }
-  }, [ensureConnected])
+  }, [connect, ensureConnected, status])
 
-  return { status, connectedDevice, errorMessage, sendDiff, sendKeys, sendType: useCallback((text: string) => {
+  return { status, connectedDevice, errorMessage, sendDiff, sendKeys, sendHello: useCallback(() => {
+    sendMessage({ type: 'hello', device_name: nicknameRef.current || getFriendlyName() })
+  }, [sendMessage, nicknameRef]), sendType: useCallback((text: string) => {
     sendMessage({ type: 'type', text })
     prevTextRef.current = ''
   }, [sendMessage]), resetPrev: useCallback(() => { prevTextRef.current = '' }, []) }
 }
 
 const LS_KEY = 'lantype_shortcuts'
+const NICKNAME_KEY = 'lantype_nickname'
+
+function loadNickname(): string {
+  try {
+    return localStorage.getItem(NICKNAME_KEY) || ''
+  } catch { return '' }
+}
 
 const MODIFIER_OPTIONS: { value: string; label: string }[] = [
   { value: 'ctrl', label: 'Ctrl' },
@@ -297,7 +325,9 @@ function loadShortcuts(): Shortcut[] {
 }
 
 export function App() {
-  const { status, connectedDevice, errorMessage, sendDiff, sendKeys, sendType, resetPrev } = useWebSocket()
+  const nicknameRef = useRef(loadNickname())
+  const { status, connectedDevice, errorMessage, sendDiff, sendKeys, sendHello, sendType, resetPrev } = useWebSocket(nicknameRef)
+  const [nickname, setNickname] = useState(nicknameRef.current)
   const [text, setText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [autoSync, setAutoSync] = useState(false)
@@ -314,6 +344,19 @@ export function App() {
       localStorage.setItem(LS_KEY, JSON.stringify(shortcuts))
     } catch { /* ignore */ }
   }, [shortcuts])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NICKNAME_KEY, nickname)
+    } catch { /* ignore */ }
+  }, [nickname])
+
+  const handleNickname = useCallback((e: JSX.TargetedEvent<HTMLInputElement>) => {
+    const v = (e.target as HTMLInputElement).value
+    nicknameRef.current = v
+    setNickname(v)
+    sendHello()
+  }, [sendHello])
 
   const persistDraft = useCallback(() => {
     if (!draft.key) return
@@ -442,10 +485,22 @@ export function App() {
             &#9881;
           </button>
         </div>
-        <div
-          className={cx(
-            styles.status,
-            status === 'connected' && styles.statusConnected,
+        <div className={styles.headerRight}>
+          <div
+            className={cx(styles.toggle, autoSync && styles.toggleActive)}
+            onClick={() => setAutoSync(!autoSync)}
+            role="switch"
+            aria-checked={autoSync}
+            aria-label="自动同步"
+          >
+            <span
+              className={cx(styles.toggleKnob, autoSync && styles.toggleKnobActive)}
+            />
+          </div>
+          <div
+            className={cx(
+              styles.status,
+              status === 'connected' && styles.statusConnected,
             status === 'disconnected' && styles.statusDisconnected,
             (status === 'reconnecting' || status === 'connecting') && styles.statusReconnecting,
           )}
@@ -460,6 +515,7 @@ export function App() {
             )}
           />
           <span>{statusText}</span>
+        </div>
         </div>
       </div>
       <div className={styles.deviceRow}>{deviceText}</div>
@@ -661,15 +717,14 @@ export function App() {
         >
           <h2 className={styles.settingsTitle}>设置</h2>
           <div className={styles.settingsRow}>
-            <span className={styles.settingsLabel}>自动同步</span>
-            <div
-              className={cx(styles.toggle, autoSync && styles.toggleActive)}
-              onClick={() => setAutoSync(!autoSync)}
-            >
-              <span
-                className={cx(styles.toggleKnob, autoSync && styles.toggleKnobActive)}
-              />
-            </div>
+            <span className={styles.settingsLabel}>昵称</span>
+            <input
+              className={styles.nicknameInput}
+              value={nickname}
+              onInput={handleNickname}
+              placeholder="显示在接收端设备列表"
+              maxLength={20}
+            />
           </div>
           <button
             className={styles.btnCloseSettings}

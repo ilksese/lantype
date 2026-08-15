@@ -323,8 +323,26 @@ async fn handle_ws_client<S>(
                                     error!("Press chord error: {e}");
                                 }
                             }
-                            Ok(ClientMessage::Hello{..}) => {
-                                // ignore duplicate hello
+                            Ok(ClientMessage::Hello { device_name }) => {
+                                // Refresh the nickname so a re-sent hello (e.g. after the
+                                // user changes their nickname on the phone) updates the
+                                // receiver's device list immediately.
+                                let changed = {
+                                    let mut clients = client_registry.clients.write().await;
+                                    match clients.iter_mut().find(|c| c.id == client_id) {
+                                        Some(c) if c.device_name != device_name => {
+                                            c.device_name = device_name;
+                                            true
+                                        }
+                                        _ => false,
+                                    }
+                                };
+                                if changed {
+                                    let clients = client_registry.clients.read().await;
+                                    let payload = serde_json::to_value(&*clients)
+                                        .unwrap_or(serde_json::Value::Array(vec![]));
+                                    let _ = app_handle.emit("clients-changed", payload);
+                                }
                             }
                             Err(e) => {
                                 error!("Parse error: {e}");
