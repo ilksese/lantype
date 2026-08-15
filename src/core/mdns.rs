@@ -18,7 +18,7 @@ impl MdnsService {
         }
     }
 
-    pub fn start(&mut self) -> Result<(), String> {
+    pub fn start(&mut self, addresses: Vec<String>) -> Result<(), String> {
         let daemon = ServiceDaemon::new().map_err(|e| format!("mdns daemon: {e}"))?;
 
         let mut properties = HashMap::new();
@@ -28,7 +28,7 @@ impl MdnsService {
             SERVICE_TYPE,
             &self.device_name,
             &format!("{}.local.", self.device_name),
-            "",
+            addresses.as_slice(),
             self.port,
             properties,
         )

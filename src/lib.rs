@@ -4,7 +4,6 @@ pub mod qr;
 pub mod tray;
 
 use log::info;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -12,14 +11,13 @@ use crate::core::config::{resolve_device_name, Config, PortConfig};
 use crate::core::mdns::MdnsService;
 use crate::core::ws::{ClientRegistry, WsServer};
 use crate::phone::{serve_phone_page, PHONE_HTML};
-use crate::tray::PrivacyState;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 struct AppState {
     ws_server: Arc<Mutex<WsServer>>,
-    mdns: Arc<Mutex<MdnsService>>,
+    _mdns: Arc<Mutex<MdnsService>>,
     port: u16,
     device_name: String,
     config: Config,
@@ -49,46 +47,69 @@ async fn get_connection_info(
     Ok(json.to_string())
 }
 
-#[tauri::command]
-fn get_privacy_enabled(app: AppHandle) -> bool {
-    app.state::<PrivacyState>().enabled.load(Ordering::Relaxed)
-}
-
-#[tauri::command]
-async fn toggle_privacy(app: AppHandle) -> Result<bool, String> {
-    let state = app.state::<PrivacyState>();
-    let new_val = !state.enabled.load(Ordering::Relaxed);
-    state.enabled.store(new_val, Ordering::Relaxed);
-
-    let app_state = app.state::<AppState>();
-    let ws = app_state.ws_server.lock().await;
-    let _port = ws.port();
-
-    let mut mdns = app_state.mdns.lock().await;
-    if new_val {
-        mdns.start()?;
-        info!("mDNS broadcast started");
-    } else {
-        mdns.stop();
-        info!("mDNS broadcast stopped");
-    }
-
-    Ok(new_val)
-}
-
+/// Pick the IP used to reach the internet (default-route interface = real LAN),
+/// falling back to any private non-virtual IPv4.
 fn get_local_ip() -> Option<String> {
-    for iface in local_ip_address::list_afinet_netifas().ok()? {
-        if let std::net::IpAddr::V4(ip) = iface.1 {
-            if !ip.is_loopback() && !ip.is_link_local()
-                && (ip.octets()[0] == 10
-                    || (ip.octets()[0] == 172 && (16..=31).contains(&ip.octets()[1]))
-                    || (ip.octets()[0] == 192 && ip.octets()[1] == 168))
-            {
-                return Some(ip.to_string());
+    if let Ok(std::net::IpAddr::V4(ip)) = local_ip_address::local_ip() {
+        if !ip.is_loopback()
+            && !ip.is_link_local()
+            && is_private(&ip)
+            && !is_virtual_iface_by_ip(&ip)
+        {
+            return Some(ip.to_string());
+        }
+    }
+    get_lan_ips().into_iter().next()
+}
+
+fn is_private(ip: &std::net::Ipv4Addr) -> bool {
+    let o = ip.octets();
+    o[0] == 10 || (o[0] == 172 && (16..=31).contains(&o[1])) || (o[0] == 192 && o[1] == 168)
+}
+
+/// Detect virtual adapters by their assigned address (e.g. OpenVPN 10.8.x,
+/// VMware 192.168.x.y, Tailscale CGNAT 100.x).
+fn is_virtual_iface_by_ip(ip: &std::net::Ipv4Addr) -> bool {
+    let o = ip.octets();
+    // Tailscale / most WireGuard deployments use CGNAT 100.64.0.0/10.
+    o[0] == 100 && (64..=127).contains(&o[1])
+}
+
+/// Collect private, non-virtual IPv4 addresses on this host.
+fn get_lan_ips() -> Vec<String> {
+    let mut ips: Vec<String> = Vec::new();
+    if let Ok(ifas) = local_ip_address::list_afinet_netifas() {
+        for (name, ip) in ifas {
+            if let std::net::IpAddr::V4(ip) = ip {
+                if ip.is_loopback() || ip.is_link_local() {
+                    continue;
+                }
+                if !is_private(&ip) || is_virtual_iface(&name) || is_virtual_iface_by_ip(&ip) {
+                    continue;
+                }
+                ips.push(ip.to_string());
             }
         }
     }
-    None
+    ips
+}
+
+/// Recognize common virtual / VPN adapter names so they are skipped.
+fn is_virtual_iface(name: &str) -> bool {
+    let n = name.to_lowercase();
+    n.contains("vmnet")
+        || n.contains("vethernet")
+        || n.contains("virtualbox")
+        || n.contains("vbox")
+        || n.contains("tailscale")
+        || n.contains("wireguard")
+        || n.contains("tap-")
+        || n.contains("tun")
+        || n.contains("openvpn")
+        || n.contains("bluetooth")
+        || n.contains("docker")
+        || n.contains("loopback")
+        || n.contains("npcap")
 }
 
 #[tauri::command]
@@ -164,9 +185,6 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .manage(PrivacyState {
-            enabled: AtomicBool::new(true),
-        })
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -281,13 +299,14 @@ pub fn run() {
                 });
 
                 let mut mdns = MdnsService::new(device_name_clone.clone(), actual_port);
-                if let Err(e) = mdns.start() {
+                let mdns_addresses = get_lan_ips();
+                if let Err(e) = mdns.start(mdns_addresses) {
                     log::error!("Failed to start mDNS: {e}");
                 }
 
                 handle.manage(AppState {
                     ws_server,
-                    mdns: Arc::new(Mutex::new(mdns)),
+                    _mdns: Arc::new(Mutex::new(mdns)),
                     port: actual_port,
                     device_name: device_name_clone,
                     config,
@@ -306,8 +325,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_connection_info,
-            get_privacy_enabled,
-            toggle_privacy,
             get_connected_devices,
             disconnect_device,
             block_device,

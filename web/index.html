@@ -44,32 +44,6 @@ body {
 .qr-box img { width: 100%; height: 100%; image-rendering: pixelated; }
 .device-name { font-size: 18px; font-weight: 600; }
 .address { font-size: 12px; color: #888; word-break: break-all; text-align: center; }
-.privacy-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  color: #aaa;
-}
-.toggle {
-  position: relative;
-  width: 42px; height: 24px;
-  background: #444;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background .2s;
-}
-.toggle.active { background: #4caf50; }
-.toggle::after {
-  content: '';
-  position: absolute;
-  top: 2px; left: 2px;
-  width: 20px; height: 20px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform .2s;
-}
-.toggle.active::after { transform: translateX(18px); }
 .hint { font-size: 11px; color: #666; text-align: center; margin-top: 4px; }
 .clients-section {
   width:100%;
@@ -159,10 +133,6 @@ body {
     <div class="clients-title">已连接设备</div>
     <div class="clients-list" id="clientsList"></div>
   </div>
-  <div class="privacy-row">
-    <span>允许被发现</span>
-    <div class="toggle active" id="privacyToggle"></div>
-  </div>
   <div class="hint">扫码连接 · 手机浏览器输入文字</div>
 </div>
 <script>
@@ -176,12 +146,6 @@ async function refresh() {
   document.getElementById('address').textContent = info.httpUrl;
 }
 refresh();
-
-const toggle = document.getElementById('privacyToggle');
-toggle.addEventListener('click', async () => {
-  const enabled = await invoke('toggle_privacy');
-  toggle.classList.toggle('active', enabled);
-});
 
 const { listen } = window.__TAURI__.event;
 

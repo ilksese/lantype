@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 use tokio::sync::{watch, RwLock};
+use tokio::time::{Duration, Instant};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
@@ -228,11 +229,15 @@ async fn handle_ws_client<S>(
     info!("Client {sender_name} ({addr}) registered as {client_id}");
 
     // Main message loop
+    let mut heartbeat = tokio::time::interval(Duration::from_secs(15));
+    let mut last_seen = Instant::now();
+
     loop {
         tokio::select! {
             msg = read.next() => {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
+                        last_seen = Instant::now();
                         match protocol::parse_client_message(&text) {
                             Ok(ClientMessage::Ping) => {
                                 let pong = protocol::serialize_server_message(&ServerMessage::Pong);
@@ -282,7 +287,11 @@ async fn handle_ws_client<S>(
                         }
                     }
                     Some(Ok(Message::Ping(_))) => {
+                        last_seen = Instant::now();
                         let _ = write.send(Message::Pong(vec![])).await;
+                    }
+                    Some(Ok(Message::Pong(_))) => {
+                        last_seen = Instant::now();
                     }
                     Some(Ok(Message::Close(_))) | None | Some(Err(_)) => {
                         break;
@@ -294,6 +303,17 @@ async fn handle_ws_client<S>(
                 info!("Disconnecting client {sender_name} ({addr})");
                 let _ = write.send(Message::Close(None)).await;
                 break;
+            }
+            _ = heartbeat.tick() => {
+                if last_seen.elapsed() > Duration::from_secs(45) {
+                    info!("Client {sender_name} ({addr}) timed out");
+                    let _ = write.send(Message::Close(None)).await;
+                    break;
+                }
+                if let Err(e) = write.send(Message::Ping(vec![])).await {
+                    error!("Heartbeat error to {addr}: {e}");
+                    break;
+                }
             }
         }
     }

@@ -1,0 +1,340 @@
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.body {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: #1a1a2e;
+  color: #eee;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #c4b5fd;
+  margin: 0;
+}
+
+.btnSettings {
+  border-width: 0;
+  background-color: transparent;
+  color: #666;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.btnSettingsActive {
+  color: #c4b5fd;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #888;
+}
+
+.statusConnected {
+  color: #4ade80;
+}
+
+.statusDisconnected {
+  color: #f87171;
+}
+
+.statusReconnecting {
+  color: #facc15;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #555;
+}
+
+.dotConnected {
+  background-color: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+}
+
+.dotDisconnected {
+  background-color: #f87171;
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.5);
+}
+
+.dotReconnecting {
+  background-color: #facc15;
+  box-shadow: 0 0 6px rgba(250, 204, 21, 0.5);
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+.deviceRow {
+  text-align: center;
+  padding: 10px 20px 6px;
+  font-size: 13px;
+  color: #666;
+  min-height: 36px;
+}
+
+.deviceName {
+  color: #a78bfa;
+  font-weight: 500;
+}
+
+.inputWrap {
+  flex: 1;
+  display: flex;
+  padding: 12px 16px;
+}
+
+.textarea {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  border-width: 0;
+  outline: none;
+  font-size: 22px;
+  line-height: 1.6;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #eee;
+  font-family: inherit;
+}
+
+.textarea::placeholder {
+  color: #555;
+}
+
+.textarea:focus {
+  background-color: rgba(255, 255, 255, 0.09);
+}
+
+.textarea:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btnBar {
+  position: fixed;
+  bottom: 24px;
+  right: 20px;
+  z-index: 100;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn {
+  border-width: 0;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn:active {
+  transform: scale(0.92);
+}
+
+.btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.btnSend {
+  background-color: #7c3aed;
+  color: #fff;
+}
+
+.hidden {
+  display: none;
+}
+
+.btnClear {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #999;
+}
+
+.btnClear:active {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #eee;
+}
+
+.btnEnter {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ddd;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.btnEnter:active {
+  background-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.footer {
+  text-align: center;
+  padding: 10px 20px 16px;
+  font-size: 11px;
+  color: #444;
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 200;
+  background-color: rgba(0, 0, 0, 0.62);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+}
+
+.overlayOpen {
+  display: flex;
+}
+
+.settingsPanel {
+  background-color: #24243f;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  width: 300px;
+  max-width: 90vw;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.settingsTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #c4b5fd;
+  margin: 0;
+  margin-bottom: 16px;
+}
+
+.settingsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.settingsLabel {
+  font-size: 14px;
+  color: #ccc;
+}
+
+.toggle {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  background-color: #5b6078;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggleActive {
+  background-color: #8b5cf6;
+}
+
+.toggleKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s;
+}
+
+.toggleKnobActive {
+  transform: translateX(18px);
+}
+
+.btnCloseSettings {
+  display: block;
+  margin: 16px auto 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #f1f5f9;
+  border-radius: 8px;
+  padding: 8px 24px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btnCloseSettings:active {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.toastWrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 300;
+  display: flex;
+  justify-content: center;
+  padding: 16px 20px;
+  pointer-events: none;
+}
+
+.toast {
+  background-color: #b91c1c;
+  color: #fff;
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  animation: pulse 0.5s ease-out 1;
+}

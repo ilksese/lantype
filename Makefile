@@ -9,14 +9,16 @@
 
 MACOS_TARGET := universal2-apple-darwin
 WINDOWS_TARGET := x86_64-pc-windows-gnu
+PHONE_DIR := web/phone
+PHONE_NODE_MODULES := $(PHONE_DIR)/node_modules/.package-lock.json
 
 release: phone
 	cargo build --release
-ifeq ($(shell uname -s),Darwin)
-	./package.sh
-else ifeq ($(OS),Windows_NT)
+ifeq ($(OS),Windows_NT)
 	@echo "==> Windows: icon already embedded in .exe, no extra step needed."
 	@echo "    target\\release\\lantype.exe"
+else ifeq ($(shell uname -s),Darwin)
+	./package.sh
 else
 	@echo "==> Linux: binary ready at target/release/lantype"
 endif
@@ -33,9 +35,13 @@ release-windows: phone
 	cargo zigbuild --release --target $(WINDOWS_TARGET)
 	@echo "==> Done: target/$(WINDOWS_TARGET)/release/lantype.exe"
 
-phone:
+$(PHONE_NODE_MODULES): $(PHONE_DIR)/package-lock.json $(PHONE_DIR)/package.json
+	@echo "==> Installing phone page dependencies..."
+	@npm --prefix $(PHONE_DIR) ci
+
+phone: $(PHONE_NODE_MODULES)
 	@echo "==> Building phone page (Preact + Vite)..."
-	@npm --prefix web/phone run build
+	@npm --prefix $(PHONE_DIR) run build
 
 clean:
 	cargo clean

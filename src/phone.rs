@@ -3,6 +3,8 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
 pub const PHONE_HTML: &str = include_str!("../web/phone/dist/index.html");
+const PHONE_JS: &str = include_str!("../web/phone/dist/assets/app.js");
+const PHONE_CSS: &str = include_str!("../web/phone/dist/assets/style.css");
 
 pub async fn serve_phone_page(
     mut stream: TcpStream,
@@ -15,10 +17,17 @@ pub async fn serve_phone_page(
         return;
     }
 
-    let body = html.as_bytes();
+    let path = request_path(&first_chunk);
+    let (body, content_type) = match path.as_deref() {
+        Some("/assets/app.js") => (PHONE_JS, "application/javascript; charset=utf-8"),
+        Some("/assets/style.css") => (PHONE_CSS, "text/css; charset=utf-8"),
+        _ => (html.as_str(), "text/html; charset=utf-8"),
+    };
+
+    let body = body.as_bytes();
     let response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        body.len()
+        "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len(),
     );
 
     if let Err(e) = stream.write_all(response.as_bytes()).await {
@@ -28,4 +37,16 @@ pub async fn serve_phone_page(
     if let Err(e) = stream.write_all(body).await {
         error!("HTTP write body error to {addr}: {e}");
     }
+}
+
+fn request_path(first_chunk: &[u8]) -> Option<String> {
+    let request = std::str::from_utf8(first_chunk).ok()?;
+    let line = request.lines().next()?;
+    let mut parts = line.split_whitespace();
+    let method = parts.next()?;
+    if method != "GET" {
+        return None;
+    }
+    let path = parts.next()?;
+    Some(path.split('?').next().unwrap_or(path).to_string())
 }

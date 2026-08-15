@@ -1,5 +1,5 @@
 export interface ServerMessage {
-  type: 'connected' | 'error'
+  type: 'connected' | 'error' | 'pong'
   device?: string
   client_id?: string
   message?: string

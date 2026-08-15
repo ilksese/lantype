@@ -52,7 +52,7 @@ impl Default for Config {
 impl Config {
     /// Load configuration by merging sources with ascending priority:
     ///   1. default values
-    ///   2. `$HOME/.config/lantype/config.json` (global)
+    ///   2. the platform-specific global config path
     ///   3. `./config.json` (local, project/cwd)
     ///
     /// Merging is shallow at the top level — keys in higher-priority sources
@@ -60,7 +60,7 @@ impl Config {
     pub fn load() -> Self {
         let mut merged = serde_json::json!({});
 
-        // Global config: $HOME/.config/lantype/config.json
+        // Global config: platform-specific path from global_config_path().
         if let Some(global_path) = global_config_path() {
             if global_path.exists() {
                 match std::fs::read_to_string(&global_path) {
@@ -96,7 +96,7 @@ impl Config {
     /// shallow merge strategy as load().  On failure the error is logged and
     /// the in-memory config is unaffected.
     pub fn save(&self) -> Result<(), String> {
-        let global_path = global_config_path().ok_or("No HOME directory")?;
+        let global_path = global_config_path().ok_or("No global config directory")?;
 
         let mut existing: Value = if global_path.exists() {
             std::fs::read_to_string(&global_path)
@@ -172,7 +172,7 @@ pub fn resolve_device_name(config: &Config) -> String {
 
     let name = generate_random_name();
     let Some(global_path) = global_config_path() else {
-        warn!("No HOME directory found, cannot persist random nickname");
+        warn!("No global config directory found, cannot persist random nickname");
         return name;
     };
 
@@ -265,13 +265,36 @@ pub(crate) fn merge(base: &mut Value, override_val: Value) {
     }
 }
 
-/// Returns the path to the global config file:
-/// `$HOME/.config/lantype/config.json`
+/// Returns the path to the global config file.
+///
+/// Windows GUI launches do not always provide HOME, so prefer APPDATA there.
 pub(crate) fn global_config_path() -> Option<PathBuf> {
-    env::var("HOME").ok().map(|home| {
-        PathBuf::from(home)
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(appdata) = env_path("APPDATA") {
+            return Some(appdata.join("lantype").join("config.json"));
+        }
+
+        if let Some(user_profile) = env_path("USERPROFILE") {
+            return Some(
+                user_profile
+                    .join(".config")
+                    .join("lantype")
+                    .join("config.json"),
+            );
+        }
+    }
+
+    env_path("HOME").map(|home| {
+        home
             .join(".config")
             .join("lantype")
             .join("config.json")
     })
+}
+
+fn env_path(name: &str) -> Option<PathBuf> {
+    env::var_os(name)
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
 }
