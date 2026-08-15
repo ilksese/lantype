@@ -216,10 +216,10 @@ async fn handle_ws_client<S>(
 
     let client_ip = addr.ip().to_string();
 
-    // Check blocklist
+    // Check blocklist (by IP, which cannot be spoofed by the client)
     let is_blocked = {
         let bl = blocklist.read().await;
-        bl.iter().any(|b| b.ip == client_ip && b.device_name == sender_name)
+        bl.iter().any(|b| b.ip == client_ip)
     };
     if is_blocked {
         info!("Rejected blocked device {sender_name} from {addr}");
