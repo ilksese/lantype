@@ -251,6 +251,24 @@ export function App() {
     if (!isComposing.current && autoSync) sendDiff(value)
   }, [autoSync, sendDiff])
 
+  const handlePaste = useCallback((e: JSX.TargetedEvent<HTMLTextAreaElement>) => {
+    const clip = (e.nativeEvent ?? e) as ClipboardEvent
+    const pasted = clip.clipboardData?.getData('text') ?? ''
+    if (!pasted) return
+    e.preventDefault()
+    const el = e.target as HTMLTextAreaElement
+    const start = el.selectionStart ?? el.value.length
+    const end = el.selectionEnd ?? el.value.length
+    const value = el.value.slice(0, start) + pasted + el.value.slice(end)
+    setText(value)
+    if (!isComposing.current && autoSync) sendDiff(value)
+    requestAnimationFrame(() => {
+      el.focus()
+      const pos = start + pasted.length
+      el.setSelectionRange(pos, pos)
+    })
+  }, [autoSync, sendDiff])
+
   const handleCompositionStart = useCallback(() => {
     isComposing.current = true
   }, [])
@@ -346,6 +364,7 @@ export function App() {
           className={styles.textarea}
           value={text}
           onInput={handleInput}
+          onPaste={handlePaste}
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}
           placeholder="在此输入文字..."
