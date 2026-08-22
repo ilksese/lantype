@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type JSX } from 'preact/compat'
 import { useWebSocket } from './hooks/useWebSocket'
 import { ShortcutPanel } from './components/ShortcutPanel'
+import { PhrasePanel } from './components/PhrasePanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import { IconGear, IconEnter, IconSend, IconClear } from './components/icons'
 import styles from './app.module.css'
@@ -239,6 +240,7 @@ export function App() {
       <div className={styles.footer}>文字实时同步到桌面端</div>
 
       <ShortcutPanel sendKeys={sendKeys} isConnected={isConnected} />
+      <PhrasePanel sendType={sendType} isConnected={isConnected} />
 
       <SettingsPanel
         open={settingsOpen}

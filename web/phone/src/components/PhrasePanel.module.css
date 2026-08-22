@@ -1,0 +1,308 @@
+.area {
+  position: fixed;
+  left: 20px;
+  bottom: 108px;
+  z-index: 152;
+}
+
+.trigger {
+  border-width: 0;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #fbbf24;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: background-color 0.2s, transform 0.15s;
+}
+
+.trigger:active {
+  transform: scale(0.92);
+}
+
+.triggerActive {
+  background-color: rgba(251, 191, 36, 0.24);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: none;
+  background-color: transparent;
+}
+
+.backdropOpen {
+  display: block;
+}
+
+.popover {
+  position: absolute;
+  left: 0;
+  bottom: 52px;
+  z-index: 160;
+  width: 300px;
+  max-width: calc(100vw - 40px);
+  max-height: min(68dvh, 520px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background-color: #24243f;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fde68a;
+}
+
+.editToggle,
+.smallSave,
+.save,
+.cancel {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.editToggle {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #aaa;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.editToggleActive {
+  background-color: rgba(251, 191, 36, 0.2);
+  color: #fde68a;
+  border-color: rgba(253, 230, 138, 0.42);
+}
+
+.groupTabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.groupTab {
+  position: relative;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 7px 12px;
+  max-width: 160px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.groupTabActive {
+  background-color: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fde68a;
+}
+
+.groupName,
+.phraseText,
+.sendTitle,
+.sendContent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.groupName {
+  display: block;
+  white-space: nowrap;
+}
+
+.groupDelete {
+  position: absolute;
+  top: -4px;
+  right: -3px;
+  display: flex;
+  color: #f87171;
+}
+
+.groupForm,
+.phraseForm,
+.manager {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupForm {
+  margin-bottom: 10px;
+}
+
+.textInput,
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #eee;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.textInput {
+  height: 36px;
+  padding: 0 10px;
+}
+
+.textarea {
+  min-height: 82px;
+  resize: vertical;
+  padding: 9px 10px;
+  line-height: 1.45;
+}
+
+.textInput::placeholder,
+.textarea::placeholder {
+  color: #777;
+}
+
+.smallSave,
+.save {
+  background-color: #d97706;
+  border-color: #d97706;
+  color: #fff;
+}
+
+.smallSave {
+  height: 34px;
+  font-size: 13px;
+}
+
+.phraseList,
+.sendList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.phraseList {
+  max-height: 130px;
+}
+
+.sendList {
+  max-height: 360px;
+}
+
+.phraseRow,
+.sendItem {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #eee;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.phraseRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 32px 8px 10px;
+  text-align: left;
+}
+
+.phraseText {
+  display: block;
+  white-space: nowrap;
+}
+
+.phraseDelete {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: #f87171;
+}
+
+.sendItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.sendItem:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.sendTitle {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.sendContent {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  color: #aaa;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.save,
+.cancel {
+  padding: 7px 14px;
+  font-size: 13px;
+}
+
+.save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cancel {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+.empty {
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 18px 10px;
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+}
