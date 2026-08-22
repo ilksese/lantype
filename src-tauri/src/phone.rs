@@ -2,9 +2,9 @@ use log::error;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
-pub const PHONE_HTML: &str = include_str!("../web/phone/dist/index.html");
-const PHONE_JS: &str = include_str!("../web/phone/dist/assets/app.js");
-const PHONE_CSS: &str = include_str!("../web/phone/dist/assets/style.css");
+pub const PHONE_HTML: &str = include_str!("../../web/phone/dist/index.html");
+const PHONE_JS: &str = include_str!("../../web/phone/dist/assets/app.js");
+const PHONE_CSS: &str = include_str!("../../web/phone/dist/assets/style.css");
 
 pub async fn serve_phone_page(
     mut stream: TcpStream,

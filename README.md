@@ -17,6 +17,23 @@
 - **二维码:** qrcode + image
 - **手机端:** 单 HTML 文件
 
+## 开发
+
+```bash
+npm install
+npm run dev
+```
+
+也可以用 PM2 托管开发进程：
+
+```bash
+npm run pm2:start
+npm run pm2:logs
+npm run pm2:stop
+```
+
+项目采用 Tauri 标准骨架：`src-tauri/` 放 Rust 后端、Tauri 配置和桌面资源，`web/` 放前端页面。
+
 ## 配置
 
 支持通过 JSON 文件配置（若不配置，默认随机端口即可开箱使用）：
@@ -44,21 +61,18 @@
 ## 构建
 
 ```bash
-make release          # 当前平台
-make release-macos    # macOS universal .app
-make release-windows  # Windows GNU .exe
-make release-all      # macOS + Windows
+npm run build
 ```
 
-交叉编译依赖 `zig` 和 `cargo-zigbuild`：
+Tauri CLI 会先运行 `build.beforeBuildCommand` 构建手机端页面，再构建桌面应用。
+
+交叉编译使用 Tauri 标准 target 参数，按目标平台安装对应 Rust target 和系统依赖：
 
 ```bash
-cargo install cargo-zigbuild
-rustup target add x86_64-apple-darwin aarch64-apple-darwin x86_64-pc-windows-gnu
+npm run tauri -- build --target x86_64-pc-windows-msvc
 ```
 
 产物路径：
 
-- macOS: `target/universal2-apple-darwin/release/LanType.app`
-- Windows: `target/x86_64-pc-windows-gnu/release/lantype.exe`
-- 当前平台: `target/release/lantype`、`target/release/lantype.exe` 或 `target/release/LanType.app`
+- 应用包: `src-tauri/target/release/bundle/`
+- 调试/中间产物: `src-tauri/target/`

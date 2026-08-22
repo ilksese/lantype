@@ -2,12 +2,15 @@
   "$schema": "https://raw.githubusercontent.com/nexxeln/tauri/dev/crates/tauri-config-schema/schema.json",
   "productName": "LanType",
   "version": "0.1.0",
-  "identifier": "com.lantype.app",
+  "identifier": "com.lantype.desktop",
   "build": {
-    "frontendDist": "web"
+    "beforeDevCommand": "npm run build:phone && npm run dev:web",
+    "beforeBuildCommand": "npm run build:phone",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../web"
   },
   "bundle": {
-    "icon": ["icons/icon.png"]
+    "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"]
   },
   "app": {
     "withGlobalTauri": true,
