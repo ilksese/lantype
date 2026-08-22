@@ -8,11 +8,22 @@ function cx(...names: (string | false | null | undefined)[]): string {
 interface SettingsPanelProps {
   open: boolean
   nickname: string
+  keepAwake: boolean
+  wakeLockSupported: boolean
   onNickname: (e: JSX.TargetedEvent<HTMLInputElement>) => void
+  onKeepAwake: (enabled: boolean) => void
   onClose: () => void
 }
 
-export function SettingsPanel({ open, nickname, onNickname, onClose }: SettingsPanelProps) {
+export function SettingsPanel({
+  open,
+  nickname,
+  keepAwake,
+  wakeLockSupported,
+  onNickname,
+  onKeepAwake,
+  onClose,
+}: SettingsPanelProps) {
   return (
     <div
       className={cx(styles.overlay, open && styles.overlayOpen)}
@@ -29,6 +40,22 @@ export function SettingsPanel({ open, nickname, onNickname, onClose }: SettingsP
             placeholder="显示在接收端设备列表"
             maxLength={20}
           />
+        </div>
+        <div className={styles.settingsRow}>
+          <div className={styles.settingsText}>
+            <span className={styles.settingsLabel}>保持常亮</span>
+            {!wakeLockSupported && <span className={styles.settingsNote}>当前浏览器不支持</span>}
+          </div>
+          <button
+            className={cx(styles.switch, keepAwake && styles.switchOn)}
+            onClick={() => onKeepAwake(!keepAwake)}
+            disabled={!wakeLockSupported}
+            role="switch"
+            aria-checked={keepAwake}
+            type="button"
+          >
+            <span className={cx(styles.switchKnob, keepAwake && styles.switchKnobOn)} />
+          </button>
         </div>
         <button
           className={styles.btnCloseSettings}

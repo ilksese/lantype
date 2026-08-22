@@ -11,11 +11,28 @@ function cx(...names: (string | false | null | undefined)[]): string {
 }
 
 const NICKNAME_KEY = 'lantype_nickname'
+const KEEP_AWAKE_KEY = 'lantype_keep_awake'
+
+interface WakeLockSentinel extends EventTarget {
+  release: () => Promise<void>
+}
+
+interface WakeLockNavigator extends Navigator {
+  wakeLock?: {
+    request: (type: 'screen') => Promise<WakeLockSentinel>
+  }
+}
 
 function loadNickname(): string {
   try {
     return localStorage.getItem(NICKNAME_KEY) || ''
   } catch { return '' }
+}
+
+function loadKeepAwake(): boolean {
+  try {
+    return localStorage.getItem(KEEP_AWAKE_KEY) === '1'
+  } catch { return false }
 }
 
 export function App() {
@@ -25,6 +42,9 @@ export function App() {
   const [text, setText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [autoSync, setAutoSync] = useState(false)
+  const [keepAwake, setKeepAwake] = useState(loadKeepAwake)
+  const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isComposing = useRef(false)
 
@@ -33,6 +53,46 @@ export function App() {
       localStorage.setItem(NICKNAME_KEY, nickname)
     } catch { /* ignore */ }
   }, [nickname])
+
+  const requestWakeLock = useCallback(async () => {
+    if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return false
+    try {
+      wakeLockRef.current = await (navigator as WakeLockNavigator).wakeLock!.request('screen')
+      wakeLockRef.current.addEventListener('release', () => { wakeLockRef.current = null })
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
+  const releaseWakeLock = useCallback(async () => {
+    const wakeLock = wakeLockRef.current
+    wakeLockRef.current = null
+    if (wakeLock) await wakeLock.release().catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(KEEP_AWAKE_KEY, keepAwake ? '1' : '0')
+    } catch { /* ignore */ }
+
+    if (keepAwake) {
+      requestWakeLock()
+    } else {
+      releaseWakeLock()
+    }
+  }, [keepAwake, releaseWakeLock, requestWakeLock])
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (keepAwake && document.visibilityState === 'visible') requestWakeLock()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      releaseWakeLock()
+    }
+  }, [keepAwake, releaseWakeLock, requestWakeLock])
 
   const handleNickname = useCallback((e: JSX.TargetedEvent<HTMLInputElement>) => {
     const v = (e.target as HTMLInputElement).value
@@ -245,7 +305,10 @@ export function App() {
       <SettingsPanel
         open={settingsOpen}
         nickname={nickname}
+        keepAwake={keepAwake}
+        wakeLockSupported={wakeLockSupported}
         onNickname={handleNickname}
+        onKeepAwake={setKeepAwake}
         onClose={() => setSettingsOpen(false)}
       />
     </div>
