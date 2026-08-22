@@ -5,6 +5,8 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub const DEFAULT_PORT: u16 = 2777;
+
 /// Port configuration: "auto" (random port) or a fixed port number (1-65535).
 #[derive(Debug, Clone)]
 pub enum PortConfig {
@@ -18,6 +20,12 @@ impl Default for PortConfig {
     }
 }
 
+impl PortConfig {
+    pub fn is_auto(&self) -> bool {
+        matches!(self, Self::Auto)
+    }
+}
+
 /// A blocked device entry. Matching is by (ip, device_name) pair.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockEntry {
@@ -28,10 +36,16 @@ pub struct BlockEntry {
 /// The application-level configuration merged from multiple sources.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "PortConfig::is_auto")]
     pub port: PortConfig,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "PortConfig::is_auto")]
     pub http_port: PortConfig,
+    #[serde(skip)]
+    pub port_configured: bool,
+    #[serde(skip)]
+    pub http_port_configured: bool,
+    #[serde(default)]
+    pub random_port: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nickname: Option<String>,
     #[serde(default)]
@@ -43,6 +57,9 @@ impl Default for Config {
         Self {
             port: PortConfig::Auto,
             http_port: PortConfig::Auto,
+            port_configured: false,
+            http_port_configured: false,
+            random_port: false,
             nickname: None,
             blocklist: Vec::new(),
         }
@@ -97,10 +114,16 @@ impl Config {
             }
         }
 
-        serde_json::from_value(merged).unwrap_or_else(|e| {
+        let port_configured = merged.get("port").is_some();
+        let http_port_configured = merged.get("http_port").is_some();
+
+        let mut config: Config = serde_json::from_value(merged).unwrap_or_else(|e| {
             warn!("Failed to deserialize merged config, using defaults: {e}");
             Config::default()
-        })
+        });
+        config.port_configured = port_configured;
+        config.http_port_configured = http_port_configured;
+        config
     }
 
     /// Save current config to the global config file path.
@@ -131,6 +154,28 @@ impl Config {
         let content = serde_json::to_string_pretty(&existing).map_err(|e| e.to_string())?;
         std::fs::write(&global_path, &content).map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    pub fn listen_port(&self) -> u16 {
+        if self.http_port_configured {
+            return match self.http_port {
+                PortConfig::Fixed(port) => port,
+                PortConfig::Auto => 0,
+            };
+        }
+
+        if self.port_configured {
+            return match self.port {
+                PortConfig::Fixed(port) => port,
+                PortConfig::Auto => 0,
+            };
+        }
+
+        if self.random_port {
+            0
+        } else {
+            DEFAULT_PORT
+        }
     }
 }
 

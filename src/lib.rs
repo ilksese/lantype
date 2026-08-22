@@ -7,7 +7,7 @@ use log::info;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::core::config::{resolve_device_name, Config, PortConfig};
+use crate::core::config::{resolve_device_name, Config};
 use crate::core::mdns::MdnsService;
 use crate::core::ws::{generate_pin, ClientRegistry, WsServer};
 use crate::phone::{serve_phone_page, PHONE_HTML};
@@ -20,7 +20,7 @@ struct AppState {
     _mdns: Arc<Mutex<MdnsService>>,
     port: u16,
     device_name: String,
-    config: Config,
+    config: Arc<Mutex<Config>>,
     client_registry: Arc<ClientRegistry>,
 }
 
@@ -144,14 +144,30 @@ async fn block_device(
         current
     };
 
-    let mut config = state.config.clone();
-    config.blocklist = blocklist;
-    config
-        .save()
-        .map_err(|e| format!("Failed to save blocklist: {e}"))?;
+    {
+        let mut config = state.config.lock().await;
+        config.blocklist = blocklist;
+        config
+            .save()
+            .map_err(|e| format!("Failed to save blocklist: {e}"))?;
+    }
 
     // Disconnect the client
     disconnect_device(app, state, client_id).await
+}
+
+#[tauri::command]
+async fn get_random_port_enabled(state: State<'_, AppState>) -> Result<bool, String> {
+    Ok(state.config.lock().await.random_port)
+}
+
+#[tauri::command]
+async fn set_random_port_enabled(state: State<'_, AppState>, enabled: bool) -> Result<(), String> {
+    let mut config = state.config.lock().await;
+    config.random_port = enabled;
+    config
+        .save()
+        .map_err(|e| format!("Failed to save random port setting: {e}"))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -162,6 +178,12 @@ pub fn run() {
     let device_name = resolve_device_name(&config);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -170,15 +192,8 @@ pub fn run() {
             let config = config.clone();
 
             tauri::async_runtime::spawn(async move {
-                // Determine the listen port:
-                //   http_port > port > random
-                let listen_port = match &config.http_port {
-                    PortConfig::Fixed(p) => *p,
-                    PortConfig::Auto => match &config.port {
-                        PortConfig::Fixed(p) => *p,
-                        PortConfig::Auto => 0,
-                    },
-                };
+                // Fixed config ports win; otherwise use the desktop random-port setting.
+                let listen_port = config.listen_port();
 
                 // Single TcpListener for both HTTP and WebSocket
                 let listener = if listen_port == 0 {
@@ -287,7 +302,7 @@ pub fn run() {
                     _mdns: Arc::new(Mutex::new(mdns)),
                     port: actual_port,
                     device_name: device_name_clone,
-                    config,
+                    config: Arc::new(Mutex::new(config)),
                     client_registry,
                 });
             });
@@ -306,6 +321,8 @@ pub fn run() {
             get_connected_devices,
             disconnect_device,
             block_device,
+            get_random_port_enabled,
+            set_random_port_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

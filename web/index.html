@@ -45,6 +45,53 @@ body {
 .device-name { font-size: 18px; font-weight: 600; }
 .address { font-size: 12px; color: #888; word-break: break-all; text-align: center; }
 .hint { font-size: 11px; color: #666; text-align: center; margin-top: 4px; }
+.settings-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(255,255,255,.06);
+  border-radius: 10px;
+  padding: 9px 12px;
+}
+.settings-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.settings-title { font-size: 13px; color: #ddd; }
+.settings-note { font-size: 10px; color: #666; }
+.switch {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  background: #3b3b5c;
+  border-radius: 999px;
+  transition: background .18s;
+}
+.slider:before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: #ccc;
+  border-radius: 50%;
+  transition: transform .18s, background .18s;
+}
+.switch input:checked + .slider { background: #7c3aed; }
+.switch input:checked + .slider:before { transform: translateX(18px); background: #fff; }
+.settings-status { font-size: 10px; color: #888; min-height: 12px; text-align: center; }
 .clients-section {
   width:100%;
   display:flex;
@@ -133,6 +180,17 @@ body {
     <div class="clients-title">已连接设备</div>
     <div class="clients-list" id="clientsList"></div>
   </div>
+  <div class="settings-row">
+    <div class="settings-text">
+      <div class="settings-title">随机端口</div>
+      <div class="settings-note">未配置固定端口时，下次启动生效</div>
+    </div>
+    <label class="switch" aria-label="随机端口">
+      <input type="checkbox" id="randomPortToggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="settings-status" id="settingsStatus"></div>
   <div class="hint">扫码连接 · 手机浏览器输入文字</div>
 </div>
 <script>
@@ -146,6 +204,27 @@ async function refresh() {
   document.getElementById('address').textContent = info.httpUrl;
 }
 refresh();
+
+var randomPortToggle = document.getElementById('randomPortToggle');
+var settingsStatus = document.getElementById('settingsStatus');
+
+invoke('get_random_port_enabled').then(function(enabled) {
+  randomPortToggle.checked = Boolean(enabled);
+}).catch(function(e) {
+  console.error('get_random_port_enabled failed', e);
+});
+
+randomPortToggle.addEventListener('change', function() {
+  var enabled = randomPortToggle.checked;
+  settingsStatus.textContent = '保存中...';
+  invoke('set_random_port_enabled', { enabled: enabled }).then(function() {
+    settingsStatus.textContent = '已保存，下次启动生效';
+  }).catch(function(e) {
+    randomPortToggle.checked = !enabled;
+    settingsStatus.textContent = '保存失败';
+    console.error('set_random_port_enabled failed', e);
+  });
+});
 
 const { listen } = window.__TAURI__.event;
 
