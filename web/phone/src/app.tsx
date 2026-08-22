@@ -155,17 +155,19 @@ export function App() {
           </button>
         </div>
         <div className={styles.headerRight}>
-          <div
+          <button
             className={cx(styles.toggle, autoSync && styles.toggleActive)}
             onClick={() => setAutoSync(!autoSync)}
             role="switch"
             aria-checked={autoSync}
-            aria-label="自动同步"
+            aria-label="自动发送"
+            type="button"
           >
+            <span className={styles.toggleText}>自动发送</span>
             <span
               className={cx(styles.toggleKnob, autoSync && styles.toggleKnobActive)}
             />
-          </div>
+          </button>
           <div
             className={cx(
               styles.status,

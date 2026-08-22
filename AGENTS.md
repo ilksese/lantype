@@ -44,6 +44,7 @@ cargo build --release    # compile only
 
 ## Testing
 
+- Run `cargo fmt` only for Rust code files changed in the current task.
 - No tests exist. No test dependencies in `Cargo.toml`. No CI.
 
 ## Notable

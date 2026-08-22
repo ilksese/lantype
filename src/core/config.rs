@@ -66,9 +66,15 @@ impl Config {
                 match std::fs::read_to_string(&global_path) {
                     Ok(content) => match serde_json::from_str::<Value>(&content) {
                         Ok(val) => merge(&mut merged, val),
-                        Err(e) => warn!("Failed to parse global config at {}: {e}", global_path.display()),
+                        Err(e) => warn!(
+                            "Failed to parse global config at {}: {e}",
+                            global_path.display()
+                        ),
                     },
-                    Err(e) => warn!("Failed to read global config at {}: {e}", global_path.display()),
+                    Err(e) => warn!(
+                        "Failed to read global config at {}: {e}",
+                        global_path.display()
+                    ),
                 }
             }
         }
@@ -79,9 +85,15 @@ impl Config {
             match std::fs::read_to_string(&local_path) {
                 Ok(content) => match serde_json::from_str::<Value>(&content) {
                     Ok(val) => merge(&mut merged, val),
-                    Err(e) => warn!("Failed to parse local config at {}: {e}", local_path.display()),
+                    Err(e) => warn!(
+                        "Failed to parse local config at {}: {e}",
+                        local_path.display()
+                    ),
                 },
-                Err(e) => warn!("Failed to read local config at {}: {e}", local_path.display()),
+                Err(e) => warn!(
+                    "Failed to read local config at {}: {e}",
+                    local_path.display()
+                ),
             }
         }
 
@@ -125,30 +137,213 @@ impl Config {
 // ---- Device name resolution ----
 
 static ADJECTIVES: &[&str] = &[
-    "可爱的", "危险的", "暴躁的", "忧伤的", "偷偷的", "发光的", "孤独的", "甜蜜的", "易碎的", "沉默的",
-    "逃跑的", "失眠的", "叛逆的", "害羞的", "爆炸的", "融化的", "漂浮的", "醉酒的", "生锈的", "透明的",
-    "迷路的", "疯狂的", "流泪的", "发热的", "冬眠的", "迷幻的", "尖叫的", "坠落的", "燃烧的", "冰冻的",
-    "颤抖的", "偷懒的", "撒娇的", "说谎的", "腐烂的", "饥饿的", "伪装的", "焦虑的", "迟钝的", "流浪的",
-    "沉睡的", "微笑的", "哭泣的", "愤怒的", "绝望的", "好奇的", "贪婪的", "傲慢的", "谦虚的", "自卑的",
-    "自信的", "迷茫的", "清醒的", "麻木的", "狂热的", "温柔的", "冷酷的", "热烈的", "冰冷的", "潮湿的",
-    "干燥的", "拥挤的", "空旷的", "喧闹的", "安静的", "忙碌的", "懒惰的", "勤奋的", "愚蠢的", "聪明的",
-    "笨拙的", "灵巧的", "粗鲁的", "优雅的", "丑陋的", "美丽的", "平凡的", "特别的", "普通的", "稀有的",
-    "常见的", "古老的", "年轻的", "成熟的", "幼稚的", "天真的", "狡猾的", "善良的", "邪恶的", "正义的",
-    "黑暗的", "光明的", "混合的", "纯粹的", "混沌的",
+    "可爱的",
+    "危险的",
+    "暴躁的",
+    "忧伤的",
+    "偷偷的",
+    "发光的",
+    "孤独的",
+    "甜蜜的",
+    "易碎的",
+    "沉默的",
+    "逃跑的",
+    "失眠的",
+    "叛逆的",
+    "害羞的",
+    "爆炸的",
+    "融化的",
+    "漂浮的",
+    "醉酒的",
+    "生锈的",
+    "透明的",
+    "迷路的",
+    "疯狂的",
+    "流泪的",
+    "发热的",
+    "冬眠的",
+    "迷幻的",
+    "尖叫的",
+    "坠落的",
+    "燃烧的",
+    "冰冻的",
+    "颤抖的",
+    "偷懒的",
+    "撒娇的",
+    "说谎的",
+    "腐烂的",
+    "饥饿的",
+    "伪装的",
+    "焦虑的",
+    "迟钝的",
+    "流浪的",
+    "沉睡的",
+    "微笑的",
+    "哭泣的",
+    "愤怒的",
+    "绝望的",
+    "好奇的",
+    "贪婪的",
+    "傲慢的",
+    "谦虚的",
+    "自卑的",
+    "自信的",
+    "迷茫的",
+    "清醒的",
+    "麻木的",
+    "狂热的",
+    "温柔的",
+    "冷酷的",
+    "热烈的",
+    "冰冷的",
+    "潮湿的",
+    "干燥的",
+    "拥挤的",
+    "空旷的",
+    "喧闹的",
+    "安静的",
+    "忙碌的",
+    "懒惰的",
+    "勤奋的",
+    "愚蠢的",
+    "聪明的",
+    "笨拙的",
+    "灵巧的",
+    "粗鲁的",
+    "优雅的",
+    "丑陋的",
+    "美丽的",
+    "平凡的",
+    "特别的",
+    "普通的",
+    "稀有的",
+    "常见的",
+    "古老的",
+    "年轻的",
+    "成熟的",
+    "幼稚的",
+    "天真的",
+    "狡猾的",
+    "善良的",
+    "邪恶的",
+    "正义的",
+    "黑暗的",
+    "光明的",
+    "混合的",
+    "纯粹的",
+    "混沌的",
 ];
 
 static FRUITS: &[&str] = &[
-    "桃子", "柠檬", "草莓", "樱桃", "芒果", "葡萄", "西瓜", "菠萝", "荔枝", "蓝莓",
-    "苹果", "橙子", "柚子", "石榴", "猕猴桃", "火龙果", "百香果", "椰子", "榴莲", "山竹",
-    "哈密瓜", "香瓜", "木瓜", "杨桃", "蜜瓜", "菠萝蜜", "牛油果", "莲雾", "山莓", "黑莓",
-    "树莓", "蓝莓", "无花果", "枇杷", "杨梅", "龙眼", "红毛丹", "番石榴", "橄榄", "李子",
-    "杏子", "枣子", "柿子", "山楂", "海棠果", "沙果", "葡萄柚", "金橘", "青橘", "柑橘",
-    "丑橘", "粑粑柑", "砂糖橘", "沃柑", "蜜橘", "血橙", "脐橙", "冰糖橙", "香水梨", "雪梨",
-    "鸭梨", "丰水梨", "库尔勒香梨", "水晶梨", "青苹果", "红富士", "嘎啦果", "蛇果", "青提", "红提",
-    "黑提", "巨峰葡萄", "阳光玫瑰", "马奶葡萄", "冬枣", "青枣", "贵妃芒", "凯特芒", "台农芒", "大青芒",
-    "小台芒", "金枕榴莲", "猫山王", "苏丹王", "红肉菠萝蜜", "黄肉菠萝蜜", "白心火龙果", "红心火龙果", "黄皮", "释迦果",
-    "人参果", "姑娘果", "酸角", "罗望子", "桑葚", "覆盆子", "蔓越莓", "西梅", "青梅", "脆梅",
-    "话梅", "黄桃", "油桃", "蟠桃", "水蜜桃", "毛桃", "黑布林", "红布林", "青李",
+    "桃子",
+    "柠檬",
+    "草莓",
+    "樱桃",
+    "芒果",
+    "葡萄",
+    "西瓜",
+    "菠萝",
+    "荔枝",
+    "蓝莓",
+    "苹果",
+    "橙子",
+    "柚子",
+    "石榴",
+    "猕猴桃",
+    "火龙果",
+    "百香果",
+    "椰子",
+    "榴莲",
+    "山竹",
+    "哈密瓜",
+    "香瓜",
+    "木瓜",
+    "杨桃",
+    "蜜瓜",
+    "菠萝蜜",
+    "牛油果",
+    "莲雾",
+    "山莓",
+    "黑莓",
+    "树莓",
+    "蓝莓",
+    "无花果",
+    "枇杷",
+    "杨梅",
+    "龙眼",
+    "红毛丹",
+    "番石榴",
+    "橄榄",
+    "李子",
+    "杏子",
+    "枣子",
+    "柿子",
+    "山楂",
+    "海棠果",
+    "沙果",
+    "葡萄柚",
+    "金橘",
+    "青橘",
+    "柑橘",
+    "丑橘",
+    "粑粑柑",
+    "砂糖橘",
+    "沃柑",
+    "蜜橘",
+    "血橙",
+    "脐橙",
+    "冰糖橙",
+    "香水梨",
+    "雪梨",
+    "鸭梨",
+    "丰水梨",
+    "库尔勒香梨",
+    "水晶梨",
+    "青苹果",
+    "红富士",
+    "嘎啦果",
+    "蛇果",
+    "青提",
+    "红提",
+    "黑提",
+    "巨峰葡萄",
+    "阳光玫瑰",
+    "马奶葡萄",
+    "冬枣",
+    "青枣",
+    "贵妃芒",
+    "凯特芒",
+    "台农芒",
+    "大青芒",
+    "小台芒",
+    "金枕榴莲",
+    "猫山王",
+    "苏丹王",
+    "红肉菠萝蜜",
+    "黄肉菠萝蜜",
+    "白心火龙果",
+    "红心火龙果",
+    "黄皮",
+    "释迦果",
+    "人参果",
+    "姑娘果",
+    "酸角",
+    "罗望子",
+    "桑葚",
+    "覆盆子",
+    "蔓越莓",
+    "西梅",
+    "青梅",
+    "脆梅",
+    "话梅",
+    "黄桃",
+    "油桃",
+    "蟠桃",
+    "水蜜桃",
+    "毛桃",
+    "黑布林",
+    "红布林",
+    "青李",
 ];
 
 fn generate_random_name() -> String {
@@ -188,26 +383,28 @@ pub fn resolve_device_name(config: &Config) -> String {
 
     // Insert or overwrite the nickname key only
     if let Value::Object(ref mut map) = existing {
-        map.insert(
-            "nickname".to_string(),
-            Value::String(name.clone()),
-        );
+        map.insert("nickname".to_string(), Value::String(name.clone()));
     }
 
     // Ensure parent directory exists
     if let Some(parent) = global_path.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
-            warn!("Failed to create config directory {}: {e}", parent.display());
+            warn!(
+                "Failed to create config directory {}: {e}",
+                parent.display()
+            );
             return name;
         }
     }
 
-    let content = serde_json::to_string_pretty(&existing).unwrap_or_else(|_| {
-        format!("{{\"nickname\":\"{}\"}}", name)
-    });
+    let content = serde_json::to_string_pretty(&existing)
+        .unwrap_or_else(|_| format!("{{\"nickname\":\"{}\"}}", name));
 
     match std::fs::write(&global_path, &content) {
-        Ok(()) => info!("Persisted random nickname \"{name}\" to {}", global_path.display()),
+        Ok(()) => info!(
+            "Persisted random nickname \"{name}\" to {}",
+            global_path.display()
+        ),
         Err(e) => warn!("Failed to write nickname to {}: {e}", global_path.display()),
     }
 
@@ -229,9 +426,7 @@ impl<'de> Deserialize<'de> for PortConfig {
                     serde::de::Error::custom("expected a positive integer for port")
                 })?;
                 if port == 0 || port > 65535 {
-                    return Err(serde::de::Error::custom(
-                        "port must be in range 1-65535",
-                    ));
+                    return Err(serde::de::Error::custom("port must be in range 1-65535"));
                 }
                 Ok(PortConfig::Fixed(port as u16))
             }
@@ -285,12 +480,7 @@ pub(crate) fn global_config_path() -> Option<PathBuf> {
         }
     }
 
-    env_path("HOME").map(|home| {
-        home
-            .join(".config")
-            .join("lantype")
-            .join("config.json")
-    })
+    env_path("HOME").map(|home| home.join(".config").join("lantype").join("config.json"))
 }
 
 fn env_path(name: &str) -> Option<PathBuf> {

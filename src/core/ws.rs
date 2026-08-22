@@ -15,9 +15,9 @@ use tokio::net::TcpStream;
 use tokio::sync::{watch, RwLock};
 use tokio::time::{Duration, Instant};
 use tokio_tungstenite::accept_async;
-use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
 use crate::core::config::BlockEntry;
@@ -136,7 +136,16 @@ impl WsServer {
         let client_registry = self.client_registry.clone();
         let blocklist = self.blocklist.clone();
 
-        handle_ws_client(ws_stream, addr, keyboard, device_name, client_registry, blocklist, app_handle).await;
+        handle_ws_client(
+            ws_stream,
+            addr,
+            keyboard,
+            device_name,
+            client_registry,
+            blocklist,
+            app_handle,
+        )
+        .await;
     }
 }
 
@@ -252,8 +261,7 @@ async fn handle_ws_client<S>(
     // Emit clients-changed event
     {
         let clients = client_registry.clients.read().await;
-        let payload =
-            serde_json::to_value(&*clients).unwrap_or(serde_json::Value::Array(vec![]));
+        let payload = serde_json::to_value(&*clients).unwrap_or(serde_json::Value::Array(vec![]));
         let _ = app_handle.emit("clients-changed", payload);
     }
 
@@ -394,8 +402,7 @@ async fn handle_ws_client<S>(
     // Emit updated list
     {
         let clients = client_registry.clients.read().await;
-        let payload =
-            serde_json::to_value(&*clients).unwrap_or(serde_json::Value::Array(vec![]));
+        let payload = serde_json::to_value(&*clients).unwrap_or(serde_json::Value::Array(vec![]));
         let _ = app_handle.emit("clients-changed", payload);
     }
 
@@ -421,7 +428,9 @@ fn request_pin(first_chunk: &[u8]) -> Option<String> {
     let target = parts.next()?;
     let query = target.split_once('?')?.1;
     for pair in query.split('&') {
-        let Some((k, v)) = pair.split_once('=') else { continue };
+        let Some((k, v)) = pair.split_once('=') else {
+            continue;
+        };
         if k == "pin" {
             return Some(v.to_string());
         }
@@ -440,7 +449,11 @@ struct PrependStream {
 
 impl PrependStream {
     fn new(stream: TcpStream, buf: Vec<u8>) -> Self {
-        Self { stream, buf, pos: 0 }
+        Self {
+            stream,
+            buf,
+            pos: 0,
+        }
     }
 }
 
@@ -472,17 +485,11 @@ impl AsyncWrite for PrependStream {
         Pin::new(&mut self.stream).poll_write(cx, buf)
     }
 
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.stream).poll_flush(cx)
     }
 
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.stream).poll_shutdown(cx)
     }
 
