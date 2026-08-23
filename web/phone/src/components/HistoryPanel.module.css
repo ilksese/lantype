@@ -1,0 +1,146 @@
+.trigger {
+  position: fixed;
+  left: 20px;
+  bottom: 192px;
+  z-index: 151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-width: 0;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #67e8f9;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.15s;
+}
+
+.trigger:active {
+  transform: scale(0.92);
+}
+
+.triggerActive {
+  background-color: rgba(6, 182, 212, 0.26);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 64px;
+  background-color: rgba(0, 0, 0, 0.62);
+}
+
+.overlayOpen {
+  display: flex;
+}
+
+.panel {
+  width: 310px;
+  max-width: 90vw;
+  max-height: min(76dvh, 560px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background-color: #24243f;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.title {
+  margin: 0;
+  color: #67e8f9;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.count {
+  color: #777;
+  font-size: 12px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.item {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #eee;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.itemText {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #f1f5f9;
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  word-break: break-word;
+}
+
+.itemMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 7px;
+  color: #888;
+  font-size: 11px;
+}
+
+.empty {
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 22px 10px;
+  color: #888;
+  font-size: 13px;
+  text-align: center;
+}
+
+.close {
+  flex: 0 0 auto;
+  margin: 14px auto 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 8px 24px;
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #f1f5f9;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.close:active {
+  background-color: rgba(255, 255, 255, 0.18);
+}

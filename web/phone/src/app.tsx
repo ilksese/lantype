@@ -3,6 +3,7 @@ import { useWebSocket } from './hooks/useWebSocket'
 import { ShortcutPanel } from './components/ShortcutPanel'
 import { PhrasePanel } from './components/PhrasePanel'
 import { SettingsPanel } from './components/SettingsPanel'
+import { HistoryPanel, type HistoryItem } from './components/HistoryPanel'
 import { IconGear, IconEnter, IconSend, IconClear } from './components/icons'
 import styles from './app.module.css'
 
@@ -12,6 +13,8 @@ function cx(...names: (string | false | null | undefined)[]): string {
 
 const NICKNAME_KEY = 'lantype_nickname'
 const KEEP_AWAKE_KEY = 'lantype_keep_awake'
+const HISTORY_KEY = 'lantype_send_history'
+const HISTORY_LIMIT = 50
 
 interface WakeLockSentinel extends EventTarget {
   release: () => Promise<void>
@@ -35,12 +38,39 @@ function loadKeepAwake(): boolean {
   } catch { return false }
 }
 
+function genHistoryId(): string {
+  return 'hi-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+}
+
+function normalizeHistory(value: unknown): HistoryItem[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item): HistoryItem | null => {
+      if (!item || typeof item !== 'object') return null
+      const raw = item as Partial<HistoryItem>
+      if (typeof raw.id !== 'string' || typeof raw.text !== 'string' || typeof raw.createdAt !== 'number') return null
+      return { id: raw.id, text: raw.text, createdAt: raw.createdAt }
+    })
+    .filter((item): item is HistoryItem => Boolean(item))
+    .slice(0, HISTORY_LIMIT)
+}
+
+function loadHistory(): HistoryItem[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY)
+    if (!raw) return []
+    return normalizeHistory(JSON.parse(raw))
+  } catch { return [] }
+}
+
 export function App() {
   const nicknameRef = useRef(loadNickname())
   const { status, connectedDevice, errorMessage, sendDiff, sendKeys, sendHello, sendType, resetPrev } = useWebSocket(nicknameRef)
   const [nickname, setNickname] = useState(nicknameRef.current)
   const [text, setText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [history, setHistory] = useState<HistoryItem[]>(loadHistory)
   const [autoSync, setAutoSync] = useState(false)
   const [keepAwake, setKeepAwake] = useState(loadKeepAwake)
   const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
@@ -53,6 +83,35 @@ export function App() {
       localStorage.setItem(NICKNAME_KEY, nickname)
     } catch { /* ignore */ }
   }, [nickname])
+
+  useEffect(() => {
+    const prevent = (e: Event) => e.preventDefault()
+    document.addEventListener('copy', prevent)
+    document.addEventListener('cut', prevent)
+    document.addEventListener('selectstart', prevent)
+    return () => {
+      document.removeEventListener('copy', prevent)
+      document.removeEventListener('cut', prevent)
+      document.removeEventListener('selectstart', prevent)
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+    } catch { /* ignore */ }
+  }, [history])
+
+  const addHistory = useCallback((value: string) => {
+    if (!value) return
+    const item = { id: genHistoryId(), text: value, createdAt: Date.now() }
+    setHistory((prev) => [item, ...prev].slice(0, HISTORY_LIMIT))
+  }, [])
+
+  const sendTrackedText = useCallback((value: string) => {
+    sendType(value)
+    addHistory(value)
+  }, [sendType, addHistory])
 
   const requestWakeLock = useCallback(async () => {
     if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return false
@@ -160,22 +219,23 @@ export function App() {
 
   const handleSend = useCallback(() => {
     if (!text) return
-    sendType(text)
+    sendTrackedText(text)
     setText('')
     resetPrev()
     textareaRef.current?.focus()
-  }, [text, sendType, resetPrev])
+  }, [text, sendTrackedText, resetPrev])
 
   const handleEnter = useCallback(() => {
     sendType('\n')
     if (autoSync) {
       // In auto-sync the text is already on the receiver; Enter commits the
       // current line, then clear the local buffer for the next input.
+      addHistory(text)
       setText('')
       resetPrev()
     }
     textareaRef.current?.focus()
-  }, [sendType, autoSync, resetPrev])
+  }, [sendType, autoSync, text, addHistory, resetPrev])
 
   let statusText = '未连接'
   let deviceText: string | JSX.Element = '扫码或输入地址连接'
@@ -209,7 +269,7 @@ export function App() {
           <h1 className={styles.title}>LanType</h1>
           <button
             className={styles.btnSettings}
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => { setSettingsOpen(true); setHistoryOpen(false) }}
             aria-label="设置"
           >
             <IconGear size={20} />
@@ -300,7 +360,16 @@ export function App() {
       <div className={styles.footer}>文字实时同步到桌面端</div>
 
       <ShortcutPanel sendKeys={sendKeys} isConnected={isConnected} />
-      <PhrasePanel sendType={sendType} isConnected={isConnected} />
+      <PhrasePanel sendType={sendTrackedText} isConnected={isConnected} />
+
+      <HistoryPanel
+        open={historyOpen}
+        history={history}
+        isConnected={isConnected}
+        onOpen={() => { setHistoryOpen(true); setSettingsOpen(false) }}
+        onSend={sendTrackedText}
+        onClose={() => setHistoryOpen(false)}
+      />
 
       <SettingsPanel
         open={settingsOpen}
