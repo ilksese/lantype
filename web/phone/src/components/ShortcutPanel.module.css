@@ -136,6 +136,11 @@
   overflow-y: auto;
 }
 
+.chipItem {
+  position: relative;
+  display: inline-flex;
+}
+
 .chip {
   position: relative;
   display: inline-flex;
@@ -153,6 +158,11 @@
 
 .chip:active {
   background-color: rgba(255, 255, 255, 0.18);
+}
+
+.chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .chipEditable {

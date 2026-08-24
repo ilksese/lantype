@@ -120,10 +120,11 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
       <button
         className={cx(styles.chipBtn, chipOpen && styles.chipBtnActive)}
         onClick={() => setChipOpen((o) => !o)}
-          aria-label="快捷键片段"
-        >
-          <IconStar size={20} />
-        </button>
+        aria-label="快捷键片段"
+        type="button"
+      >
+        <IconStar size={20} />
+      </button>
 
       <div className={styles.arrowCluster}>
         <button
@@ -131,6 +132,7 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
           onClick={() => sendKeys([], 'up')}
           disabled={!isConnected}
           aria-label="上"
+          type="button"
         >
           <IconArrowUp size={16} />
         </button>
@@ -139,6 +141,7 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
           onClick={() => sendKeys([], 'left')}
           disabled={!isConnected}
           aria-label="左"
+          type="button"
         >
           <IconArrowLeft size={16} />
         </button>
@@ -147,6 +150,7 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
           onClick={() => sendKeys([], 'down')}
           disabled={!isConnected}
           aria-label="下"
+          type="button"
         >
           <IconArrowDown size={16} />
         </button>
@@ -155,6 +159,7 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
           onClick={() => sendKeys([], 'right')}
           disabled={!isConnected}
           aria-label="右"
+          type="button"
         >
           <IconArrowRight size={16} />
         </button>
@@ -172,6 +177,8 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
             <button
               className={cx(styles.chipEditToggle, editMode && styles.chipEditToggleActive)}
               onClick={() => setEditMode((m) => !m)}
+              aria-pressed={editMode}
+              type="button"
             >
               {editMode ? '完成' : '编辑'}
             </button>
@@ -180,35 +187,41 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
           {editingId === null ? (
             <div className={styles.chipGrid}>
               {shortcuts.map((s) => (
-                <div
-                  key={s.id}
-                  className={cx(styles.chip, editMode && styles.chipEditable)}
-                  onClick={() => {
-                    if (editMode) {
-                      setDraft({ modifiers: s.modifiers, key: s.key })
-                      setEditingId(s.id)
-                    } else {
-                      sendKeys(s.modifiers, s.key)
-                      setChipOpen(false)
-                    }
-                  }}
-                >
-                  <span className={styles.chipLabel}>{shortcutLabel(s)}</span>
+                <div className={styles.chipItem} key={s.id}>
+                  <button
+                    className={cx(styles.chip, editMode && styles.chipEditable)}
+                    onClick={() => {
+                      if (editMode) {
+                        setDraft({ modifiers: s.modifiers, key: s.key })
+                        setEditingId(s.id)
+                      } else {
+                        sendKeys(s.modifiers, s.key)
+                        setChipOpen(false)
+                      }
+                    }}
+                    disabled={!editMode && !isConnected}
+                    type="button"
+                  >
+                    <span className={styles.chipLabel}>{shortcutLabel(s)}</span>
+                  </button>
                   {editMode && (
                     <button
-                        className={styles.chipDelete}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setShortcuts((prev) => prev.filter((x) => x.id !== s.id))
-                        }}
-                      >
-                        <IconClear size={12} />
-                      </button>
+                      className={styles.chipDelete}
+                      onClick={() => setShortcuts((prev) => prev.filter((x) => x.id !== s.id))}
+                      aria-label={`删除快捷键 ${shortcutLabel(s)}`}
+                      type="button"
+                    >
+                      <IconClear size={12} />
+                    </button>
                   )}
                 </div>
               ))}
               {editMode && (
-                <button className={cx(styles.chip, styles.chipAdd)} onClick={() => setEditingId('__new__')}>
+                <button
+                  className={cx(styles.chip, styles.chipAdd)}
+                  onClick={() => setEditingId('__new__')}
+                  type="button"
+                >
                   ＋ 新增
                 </button>
               )}
@@ -222,6 +235,8 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
                     key={o.value}
                     className={cx(styles.modKey, draft.modifiers.includes(o.value) && styles.modKeyActive)}
                     onClick={() => toggleModifier(o.value)}
+                    aria-pressed={draft.modifiers.includes(o.value)}
+                    type="button"
                   >
                     {o.label}
                   </button>
@@ -232,6 +247,7 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
                 className={styles.chipKeySelect}
                 value={draft.key}
                 onChange={(e) => setDraft((d) => ({ ...d, key: (e.target as HTMLSelectElement).value }))}
+                aria-label="快捷键按键"
               >
                 {KEY_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -240,13 +256,14 @@ export function ShortcutPanel({ sendKeys, isConnected }: ShortcutPanelProps) {
                 ))}
               </select>
               <div className={styles.chipEditorActions}>
-                <button className={styles.chipSave} onClick={persistDraft}>保存</button>
+                <button className={styles.chipSave} onClick={persistDraft} type="button">保存</button>
                 <button
                   className={styles.chipCancel}
                   onClick={() => {
                     setDraft({ modifiers: [], key: 'enter' })
                     setEditingId(null)
                   }}
+                  type="button"
                 >
                   取消
                 </button>

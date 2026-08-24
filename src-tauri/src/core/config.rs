@@ -8,16 +8,11 @@ use serde_json::Value;
 pub const DEFAULT_PORT: u16 = 2777;
 
 /// Port configuration: "auto" (random port) or a fixed port number (1-65535).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum PortConfig {
+    #[default]
     Auto,
     Fixed(u16),
-}
-
-impl Default for PortConfig {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 impl PortConfig {
@@ -26,11 +21,14 @@ impl PortConfig {
     }
 }
 
-/// A blocked device entry. Matching is by (ip, device_name) pair.
+/// A blocked device entry. New entries match by device ID first; old entries
+/// without one continue to match by IP.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockEntry {
     pub ip: String,
     pub device_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<String>,
 }
 
 /// The application-level configuration merged from multiple sources.
@@ -50,6 +48,10 @@ pub struct Config {
     pub nickname: Option<String>,
     #[serde(default)]
     pub blocklist: Vec<BlockEntry>,
+    #[serde(default = "default_require_approval")]
+    pub require_approval: bool,
+    #[serde(default = "default_discovery_enabled")]
+    pub discovery_enabled: bool,
 }
 
 impl Default for Config {
@@ -62,8 +64,18 @@ impl Default for Config {
             random_port: false,
             nickname: None,
             blocklist: Vec::new(),
+            require_approval: true,
+            discovery_enabled: true,
         }
     }
+}
+
+fn default_require_approval() -> bool {
+    true
+}
+
+fn default_discovery_enabled() -> bool {
+    true
 }
 
 impl Config {
@@ -532,4 +544,25 @@ fn env_path(name: &str) -> Option<PathBuf> {
     env::var_os(name)
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_config_uses_secure_defaults_and_migrates_blocklist() {
+        let config: Config = serde_json::from_str(
+            r#"{
+                "port": 2777,
+                "blocklist": [{"ip":"192.168.1.9","device_name":"旧设备"}]
+            }"#,
+        )
+        .unwrap();
+
+        assert!(config.require_approval);
+        assert!(config.discovery_enabled);
+        assert_eq!(config.blocklist.len(), 1);
+        assert_eq!(config.blocklist[0].device_id, None);
+    }
 }

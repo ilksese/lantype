@@ -14,6 +14,8 @@ body {
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   user-select: none;
 }
 .drag-handle {
@@ -30,6 +32,9 @@ body {
   align-items: center;
   gap: 16px;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .qr-box {
   background: #fff;
@@ -40,11 +45,91 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 .qr-box img { width: 100%; height: 100%; image-rendering: pixelated; }
-.device-name { font-size: 18px; font-weight: 600; }
+.device-name { max-width: 100%; font-size: 18px; font-weight: 600; text-align: center; overflow-wrap: anywhere; }
 .address { font-size: 12px; color: #888; word-break: break-all; text-align: center; }
 .hint { font-size: 11px; color: #666; text-align: center; margin-top: 4px; }
+.connection-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,.1);
+}
+.connection-title { font-size: 13px; color: #ddd; font-weight: 600; }
+.connection-row { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.connection-label { font-size: 10px; color: #777; }
+.connection-value {
+  font-size: 12px;
+  color: #ddd;
+  line-height: 1.35;
+  word-break: break-all;
+}
+.connection-value.address { text-align: left; }
+.address-list { display: flex; flex-direction: column; gap: 3px; }
+.address-item {
+  min-width: 0;
+  padding: 5px 8px;
+  background: rgba(255,255,255,.04);
+  border-radius: 6px;
+  color: #bbb;
+  font-size: 11px;
+  line-height: 1.3;
+  word-break: break-all;
+}
+.pairing-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; color: #c4b5fd; }
+.connection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.btn-connection {
+  min-width: 0;
+  min-height: 30px;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: #3b3b5c;
+  color: #ddd;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.btn-connection:hover { background: #4b4b6c; }
+.btn-connection:disabled { cursor: default; opacity: .45; }
+.btn-rotate { grid-column: 1 / -1; background: #4c2d78; color: #eee; }
+.btn-rotate:hover { background: #5b3690; }
+.connection-status {
+  min-height: 16px;
+  color: #888;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+  word-break: break-word;
+}
+.connection-status.error { color: #fca5a5; }
+.top-status {
+  position: fixed;
+  z-index: 20;
+  top: 30px;
+  left: 12px;
+  right: 12px;
+  display: none;
+  max-width: 296px;
+  margin: 0 auto;
+  padding: 8px 10px;
+  border: 1px solid #4b5563;
+  border-radius: 6px;
+  background: #26263d;
+  color: #ddd;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,.35);
+}
+.top-status.show { display: block; }
+.top-status.error { border-color: #f87171; background: #5c2e3a; color: #fee2e2; }
 .settings-row {
   width: 100%;
   display: flex;
@@ -60,6 +145,7 @@ body {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 .settings-title { font-size: 13px; color: #ddd; }
 .settings-note { font-size: 10px; color: #666; }
@@ -92,65 +178,207 @@ body {
 .switch input:checked + .slider { background: #7c3aed; }
 .switch input:checked + .slider:before { transform: translateX(18px); background: #fff; }
 .settings-status { font-size: 10px; color: #888; min-height: 12px; text-align: center; }
-.clients-section {
-  width:100%;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
+.security-section,
+.pending-section,
+.clients-section,
+.blocklist-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,.1);
 }
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.section-title {
+  min-width: 0;
+  color: #ddd;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.section-count { color: #888; font-size: 10px; flex-shrink: 0; }
+.security-status {
+  min-height: 16px;
+  color: #888;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.security-status.error { color: #fca5a5; }
+.security-status.unsupported { color: #fbbf24; }
+.security-info-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 9px 12px;
+  background: rgba(255,255,255,.06);
+  border-radius: 10px;
+}
+.security-info-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 130px;
+}
+.security-info-label { color: #ddd; font-size: 12px; }
+.security-info-note { color: #666; font-size: 10px; line-height: 1.3; overflow-wrap: anywhere; }
+.security-info-value {
+  min-width: 0;
+  flex: 1 1 100px;
+  color: #c4b5fd;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.btn-security {
+  min-width: 0;
+  min-height: 28px;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 9px;
+  background: #3b3b5c;
+  color: #ddd;
+  font-size: 11px;
+  cursor: pointer;
+}
+.btn-security:hover { background: #4b4b6c; }
+.btn-security:disabled { cursor: default; opacity: .45; }
+.pending-list,
+.blocklist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pending-card,
+.block-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  background: rgba(255,255,255,.06);
+  border-radius: 8px;
+}
+.pending-info,
+.block-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 130px;
+}
+.pending-name,
+.block-name { color: #c4b5fd; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.pending-meta,
+.block-meta { color: #777; font-size: 10px; line-height: 1.35; overflow-wrap: anywhere; }
+.card-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.card-actions button {
+  min-width: 0;
+  min-height: 27px;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 6px;
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.card-actions button:disabled { cursor: default; opacity: .45; }
+.btn-approve { background: #245b49; color: #a7f3d0; }
+.btn-approve:hover { background: #2d705a; }
+.btn-reject,.btn-revoke { background: #5c2e3a; color: #fca5a5; }
+.btn-reject:hover,.btn-revoke:hover { background: #6c3e4a; }
+.btn-unblock { background: #4c2d78; color: #ddd6fe; }
+.btn-unblock:hover { background: #5b3690; }
+.list-empty { color: #666; font-size: 11px; line-height: 1.35; }
 .clients-title {
-  font-size:13px;
-  color:#888;
-  text-align:center;
+  color: #ddd;
+  font-size: 13px;
+  font-weight: 600;
 }
 .clients-list {
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  max-height:200px;
-  overflow-y:auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .client-card {
-  background:rgba(255,255,255,.06);
-  border-radius:10px;
-  padding:10px 14px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  background: rgba(255,255,255,.06);
+  border-radius: 8px;
 }
 .client-info {
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-  flex:1;
-  min-width:0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 130px;
+  min-width: 0;
 }
 .client-name {
-  font-size:13px;
-  font-weight:500;
-  color:#c4b5fd;
+  color: #c4b5fd;
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
 }
 .client-ip {
-  font-size:11px;
-  color:#666;
+  color: #777;
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 .client-actions {
-  display:flex;
-  gap:6px;
-  flex-shrink:0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
 }
-.btn-disconnect,.btn-block {
-  border:none;
-  border-radius:6px;
-  padding:4px 10px;
-  font-size:11px;
-  cursor:pointer;
-  transition:opacity .15s;
+.client-role {
+  color: #86efac;
+  font-size: 10px;
+  line-height: 1.3;
 }
-.btn-disconnect { background:#3b3b5c; color:#ccc; }
-.btn-disconnect:hover { background:#4b4b6c; }
-.btn-block { background:#5c2e3a; color:#f87171; }
-.btn-block:hover { background:#6c3e4a; }
+.client-actions button {
+  min-width: 0;
+  min-height: 27px;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 6px;
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.client-actions button:disabled {
+  cursor: default;
+  opacity: .45;
+}
+.btn-disconnect { background: #3b3b5c; color: #ccc; }
+.btn-disconnect:hover { background: #4b4b6c; }
+.btn-block { background: #5c2e3a; color: #f87171; }
+.btn-block:hover { background: #6c3e4a; }
+.btn-controller { background: #245b49; color: #a7f3d0; }
+.btn-controller:hover { background: #2d705a; }
 .perm-banner {
   display: none;
   background: #5c2e3a;
@@ -164,10 +392,13 @@ body {
   line-height: 1.5;
 }
 .perm-banner.show { display: block; }
+.switch input:focus-visible + .slider,
+button:focus-visible { outline: 2px solid #c4b5fd; outline-offset: 2px; }
 </style>
 </head>
 <body>
 <div class="drag-handle" data-tauri-drag-region></div>
+<div class="top-status" id="topStatus" role="status" aria-live="assertive" aria-atomic="true"></div>
 <div class="container">
   <div class="device-name" id="deviceName">--</div>
   <div class="perm-banner" id="permBanner">
@@ -175,10 +406,91 @@ body {
     系统设置 → 隐私与安全性 → 辅助功能 → 添加 LanType
   </div>
   <div class="qr-box"><img id="qrImage" src="" alt="QR Code"></div>
-  <div class="address" id="address">--</div>
+  <div class="connection-section" id="connectionSection">
+    <div class="connection-title">连接信息</div>
+    <div class="connection-row">
+      <div class="connection-label">当前 HTTP 地址</div>
+      <div class="connection-value address" id="address">--</div>
+    </div>
+    <div class="connection-row" id="addressesRow" style="display:none">
+      <div class="connection-label">可用地址</div>
+      <div class="address-list" id="addressesList"></div>
+    </div>
+    <div class="connection-row" id="pairingCodeRow" style="display:none">
+      <div class="connection-label">人工配对码</div>
+      <div class="connection-value pairing-code" id="pairingCode">--</div>
+    </div>
+    <div class="connection-actions">
+      <button class="btn-connection" id="copyLinkButton" type="button">复制完整链接</button>
+      <button class="btn-connection" id="copyAddressButton" type="button">复制地址</button>
+      <button class="btn-connection btn-rotate" id="rotatePairingButton" type="button">重新生成配对信息</button>
+    </div>
+    <div class="connection-status" id="connectionStatus" role="status" aria-live="polite"></div>
+  </div>
+  <div class="security-section" id="securitySection">
+    <div class="section-heading">
+      <div class="section-title">安全控制</div>
+    </div>
+    <div class="settings-row security-setting">
+      <div class="settings-text">
+        <div class="settings-title">暂停接收输入</div>
+        <div class="settings-note">开启会断开所有已连接设备</div>
+      </div>
+      <label class="switch" aria-label="暂停接收输入">
+        <input type="checkbox" id="inputPausedToggle" disabled>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="settings-row security-setting">
+      <div class="settings-text">
+        <div class="settings-title">需要审批</div>
+        <div class="settings-note">新设备连接前等待确认</div>
+      </div>
+      <label class="switch" aria-label="需要审批">
+        <input type="checkbox" id="requireApprovalToggle" disabled>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="settings-row security-setting">
+      <div class="settings-text">
+        <div class="settings-title">mDNS 发现</div>
+        <div class="settings-note">允许局域网设备发现此电脑</div>
+      </div>
+      <label class="switch" aria-label="mDNS 发现">
+        <input type="checkbox" id="discoveryToggle" disabled>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="security-info-row">
+      <div class="security-info-main">
+        <div class="security-info-label">键盘权限</div>
+        <div class="security-info-note" id="keyboardStatus">检测中...</div>
+      </div>
+      <button class="btn-security" id="recheckKeyboardButton" type="button" disabled>重新检测</button>
+    </div>
+    <div class="security-info-row">
+      <div class="security-info-label">当前控制设备</div>
+      <div class="security-info-value" id="controllerValue">未设置</div>
+    </div>
+    <div class="security-status" id="securityStatus" role="status" aria-live="polite"></div>
+  </div>
+  <div class="pending-section" id="pendingSection" style="display:none">
+    <div class="section-heading">
+      <div class="section-title">待审批设备</div>
+      <div class="section-count" id="pendingCount"></div>
+    </div>
+    <div class="pending-list" id="pendingList"></div>
+  </div>
   <div class="clients-section" id="clientsSection" style="display:none">
-    <div class="clients-title">已连接设备</div>
+    <div class="clients-title">已连接与授权设备</div>
     <div class="clients-list" id="clientsList"></div>
+  </div>
+  <div class="blocklist-section" id="blocklistSection" style="display:none">
+    <div class="section-heading">
+      <div class="section-title">黑名单</div>
+      <div class="section-count" id="blocklistCount"></div>
+    </div>
+    <div class="blocklist-list" id="blocklistList"></div>
   </div>
   <div class="settings-row">
     <div class="settings-text">
@@ -194,105 +506,1362 @@ body {
   <div class="hint">扫码连接 · 手机浏览器输入文字</div>
 </div>
 <script>
-const invoke = window.__TAURI_INTERNALS__.invoke;
+var tauriInternals = window.__TAURI_INTERNALS__ || {};
+var tauriEvent = window.__TAURI__ && window.__TAURI__.event;
+var invoke = typeof tauriInternals.invoke === 'function'
+  ? function(command, args) {
+      try {
+        return Promise.resolve(tauriInternals.invoke(command, args));
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    }
+  : function() { return Promise.reject(new Error('当前版本不支持')); };
+var listen = tauriEvent && typeof tauriEvent.listen === 'function'
+  ? function(eventName, handler) {
+      try {
+        return Promise.resolve(tauriEvent.listen(eventName, handler));
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    }
+  : function() { return Promise.reject(new Error('当前版本不支持')); };
 
-async function refresh() {
-  const raw = await invoke('get_connection_info');
-  const info = JSON.parse(raw);
-  document.getElementById('deviceName').textContent = info.deviceName;
-  document.getElementById('qrImage').src = info.qrDataUrl;
-  document.getElementById('address').textContent = info.httpUrl;
-}
-refresh();
-
+var connectionStatus = document.getElementById('connectionStatus');
+var securityStatus = document.getElementById('securityStatus');
+var topStatus = document.getElementById('topStatus');
+var copyLinkButton = document.getElementById('copyLinkButton');
+var copyAddressButton = document.getElementById('copyAddressButton');
+var rotatePairingButton = document.getElementById('rotatePairingButton');
+var connectionValues = { fullLink: '', address: '' };
+var connectionExpiresAt = 0;
+var pairingExpiryTimer = null;
+var lastEarlyRefreshExpiresAt = 0;
+var lastExpiredRefreshExpiresAt = 0;
+var connectionRefreshVersion = 0;
+var connectionRefreshCompletedVersion = 0;
+var connectionRefreshRunner = null;
+var connectionRefreshEventQueued = false;
+var topStatusTimer = null;
+var topStatusScope = '';
 var randomPortToggle = document.getElementById('randomPortToggle');
 var settingsStatus = document.getElementById('settingsStatus');
+var inputPausedToggle = document.getElementById('inputPausedToggle');
+var requireApprovalToggle = document.getElementById('requireApprovalToggle');
+var discoveryToggle = document.getElementById('discoveryToggle');
+var recheckKeyboardButton = document.getElementById('recheckKeyboardButton');
+var securityState = {
+  paused: false,
+  requireApproval: false,
+  discoveryEnabled: true,
+  controllerId: '',
+  keyboardHealthy: null,
+  pending: [],
+  clients: [],
+  blocklist: [],
+  authorizedDevices: [],
+};
+var securityStateLoaded = false;
+var securityUnsupported = false;
+var securityListenersRegistered = false;
 
-invoke('get_random_port_enabled').then(function(enabled) {
-  randomPortToggle.checked = Boolean(enabled);
-}).catch(function(e) {
-  console.error('get_random_port_enabled failed', e);
-});
+function textValue(value) {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return '';
+}
 
-randomPortToggle.addEventListener('change', function() {
+function firstText(values) {
+  for (var i = 0; i < values.length; i++) {
+    var value = textValue(values[i]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function fieldValue(object, names) {
+  if (!object || typeof object !== 'object') return { found: false, value: undefined };
+  for (var i = 0; i < names.length; i++) {
+    if (Object.prototype.hasOwnProperty.call(object, names[i])) {
+      return { found: true, value: object[names[i]] };
+    }
+  }
+  return { found: false, value: undefined };
+}
+
+function booleanValue(value, fallback) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    var normalized = value.toLowerCase().trim();
+    if (normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'off' || normalized === 'no') return false;
+  }
+  return fallback;
+}
+
+function parsePayload(raw, label) {
+  if (typeof raw !== 'string') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    throw new Error(label + '格式无效');
+  }
+}
+
+function arrayValue(value, label) {
+  var parsed = parsePayload(value, label);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(function(item) {
+    return item && typeof item === 'object' && !Array.isArray(item);
+  });
+}
+
+function addressValue(value) {
+  var text = textValue(value);
+  if (text) return text;
+  if (!value || typeof value !== 'object') return '';
+  return firstAddress([
+    value.httpUrl,
+    value.httpAddress,
+    value.address,
+    value.url,
+    value.ip,
+  ]);
+}
+
+function firstAddress(values) {
+  for (var i = 0; i < values.length; i++) {
+    var value = addressValue(values[i]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function toHttpAddress(value) {
+  if (value.indexOf('ws://') === 0) return 'http://' + value.slice(5);
+  if (value.indexOf('wss://') === 0) return 'https://' + value.slice(6);
+  return value;
+}
+
+function addressFromUrl(value) {
+  if (!value) return '';
+  try {
+    return new URL(value).origin;
+  } catch (_) {
+    return value;
+  }
+}
+
+function parseConnectionInfo(raw) {
+  var info = parsePayload(raw, '连接信息');
+  if (!info || typeof info !== 'object' || Array.isArray(info)) {
+    throw new Error('连接信息格式无效');
+  }
+  return info;
+}
+
+function setConnectionStatus(message, isError) {
+  if (!connectionStatus) return;
+  connectionStatus.textContent = message || '';
+  connectionStatus.classList.toggle('error', Boolean(isError));
+}
+
+function setSecurityStatus(message, isError) {
+  if (!securityStatus) return;
+  var value = message || '';
+  securityStatus.textContent = value;
+  securityStatus.classList.toggle('error', Boolean(isError));
+  securityStatus.classList.toggle('unsupported', value.indexOf('当前版本不支持') !== -1);
+}
+
+function showTopStatus(message, isError, scope) {
+  clearTimeout(topStatusTimer);
+  topStatusTimer = null;
+  topStatus.textContent = message || '';
+  topStatus.classList.toggle('show', Boolean(message));
+  topStatus.classList.toggle('error', Boolean(isError));
+  topStatusScope = message ? (scope || '') : '';
+  if (message && !isError) {
+    topStatusTimer = setTimeout(function() {
+      topStatus.textContent = '';
+      topStatus.classList.remove('show', 'error');
+      topStatusScope = '';
+      topStatusTimer = null;
+    }, 2500);
+  }
+}
+
+function clearTopStatus(scope) {
+  if (scope && topStatusScope !== scope) return;
+  showTopStatus('', false, '');
+}
+
+function showOperationSuccess(message, area) {
+  setConnectionStatus('', false);
+  if (!securityUnsupported || area === 'security') setSecurityStatus('', false);
+  if (area === 'connection') setConnectionStatus(message, false);
+  else if (area === 'security') setSecurityStatus(message, false);
+  showTopStatus(message, false, area || '');
+}
+
+function errorDetail(error) {
+  if (typeof error === 'string') return error;
+  if (error && typeof error.message === 'string') return error.message;
+  if (error && typeof error.error === 'string') return error.error;
+  if (error && typeof error.toString === 'function') {
+    var stringified = error.toString();
+    if (stringified && stringified !== '[object Object]') return stringified;
+  }
+  try {
+    var json = JSON.stringify(error);
+    return json && json !== '{}' ? json : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function isUnsupportedError(error) {
+  var detail = errorDetail(error).toLowerCase();
+  return detail.indexOf('当前版本不支持') !== -1 ||
+    /unsupported|not supported|not implemented|unknown command|no such command|command\s+[a-z0-9_-]+\s+(?:was\s+)?not found|命令.*(?:不存在|未找到|不支持|未实现)/i.test(detail);
+}
+
+function statusMessage(message, error) {
+  if (isUnsupportedError(error)) return message + '：当前版本不支持';
+  var detail = errorDetail(error);
+  return detail ? message + '：' + detail : message;
+}
+
+function reportError(message, error) {
+  var rendered = statusMessage(message, error);
+  setConnectionStatus(rendered, true);
+  showTopStatus(rendered, true, 'connection');
+  console.error(message, error);
+  return rendered;
+}
+
+function reportSecurityError(message, error) {
+  var rendered = statusMessage(message, error);
+  setSecurityStatus(rendered, true);
+  setConnectionStatus(rendered, true);
+  showTopStatus(rendered, true, 'security');
+  console.error(message, error);
+  return rendered;
+}
+
+function timestampValue(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value < 100000000000 ? value * 1000 : value;
+  }
+  var text = textValue(value).trim();
+  if (!text) return 0;
+  if (/^\d+(?:\.\d+)?$/.test(text)) {
+    var numeric = Number(text);
+    return numeric < 100000000000 ? numeric * 1000 : numeric;
+  }
+  var parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatTimestamp(value) {
+  var timestamp = timestampValue(value);
+  if (!timestamp) return textValue(value);
+  return new Date(timestamp).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
+function clearPairingExpiryTimer() {
+  if (pairingExpiryTimer !== null) clearTimeout(pairingExpiryTimer);
+  pairingExpiryTimer = null;
+}
+
+function clearConnectionCredentials() {
+  clearPairingExpiryTimer();
+  connectionExpiresAt = 0;
+  connectionValues = { fullLink: '', address: '' };
+  copyLinkButton.disabled = true;
+  copyAddressButton.disabled = true;
+  document.getElementById('qrImage').removeAttribute('src');
+  document.getElementById('address').textContent = '--';
+  document.getElementById('addressesList').textContent = '';
+  document.getElementById('addressesRow').style.display = 'none';
+  document.getElementById('pairingCode').textContent = '--';
+  document.getElementById('pairingCodeRow').style.display = 'none';
+}
+
+function requestExpiryRefresh(expiresAt, expired) {
+  if (expired) lastExpiredRefreshExpiresAt = expiresAt;
+  else lastEarlyRefreshExpiresAt = expiresAt;
+  requestConnectionRefresh({ invalidate: expired, event: true });
+}
+
+function schedulePairingRefresh(expiresAt) {
+  clearPairingExpiryTimer();
+  connectionExpiresAt = expiresAt;
+  if (!expiresAt) return;
+
+  var now = Date.now();
+  var earlyAt = expiresAt - 5000;
+  if (now < earlyAt) {
+    pairingExpiryTimer = setTimeout(function() {
+      pairingExpiryTimer = null;
+      requestExpiryRefresh(expiresAt, false);
+    }, earlyAt - now);
+  } else if (now < expiresAt && lastEarlyRefreshExpiresAt !== expiresAt) {
+    pairingExpiryTimer = setTimeout(function() {
+      pairingExpiryTimer = null;
+      requestExpiryRefresh(expiresAt, false);
+    }, 0);
+  } else if (now < expiresAt) {
+    pairingExpiryTimer = setTimeout(function() {
+      pairingExpiryTimer = null;
+      requestExpiryRefresh(expiresAt, true);
+    }, expiresAt - now);
+  } else if (lastExpiredRefreshExpiresAt !== expiresAt) {
+    pairingExpiryTimer = setTimeout(function() {
+      pairingExpiryTimer = null;
+      requestExpiryRefresh(expiresAt, true);
+    }, 0);
+  }
+}
+
+function refreshIfPairingExpiring() {
+  if (!connectionExpiresAt) return;
+  var now = Date.now();
+  if (now >= connectionExpiresAt) {
+    if (lastExpiredRefreshExpiresAt !== connectionExpiresAt) {
+      requestExpiryRefresh(connectionExpiresAt, true);
+    }
+  } else if (now >= connectionExpiresAt - 5000 && lastEarlyRefreshExpiresAt !== connectionExpiresAt) {
+    requestExpiryRefresh(connectionExpiresAt, false);
+  }
+}
+
+function renderConnectionInfo(info) {
+  var httpUrl = firstAddress([info.httpUrl, info.httpAddress, info.fullUrl, info.url]);
+  if (!httpUrl) {
+    httpUrl = toHttpAddress(firstAddress([info.selectedAddress, info.address]));
+  }
+  var fullLink = firstAddress([
+    info.fullLink,
+    info.completeUrl,
+    info.httpUrl,
+    info.fullUrl,
+    info.url,
+  ]);
+  if (!fullLink) fullLink = httpUrl;
+
+  var address = toHttpAddress(firstAddress([
+    info.selectedAddress,
+    info.httpAddress,
+    info.address,
+  ]));
+  if (!address) address = addressFromUrl(httpUrl);
+  var expiresAt = timestampValue(firstText([
+    info.expiresAt,
+    info.expires_at,
+    info.pairingExpiresAt,
+    info.pairing_expires_at,
+  ]));
+  var credentialsExpired = Boolean(expiresAt && expiresAt <= Date.now());
+
+  document.getElementById('deviceName').textContent = textValue(info.deviceName) || '--';
+  var qrImage = document.getElementById('qrImage');
+  var qrDataUrl = textValue(info.qrDataUrl);
+  if (qrDataUrl && !credentialsExpired) qrImage.src = qrDataUrl;
+  else qrImage.removeAttribute('src');
+  document.getElementById('address').textContent = !credentialsExpired && httpUrl ? httpUrl : '--';
+
+  var addressesRow = document.getElementById('addressesRow');
+  var addressesList = document.getElementById('addressesList');
+  var addresses = Array.isArray(info.addresses)
+    ? info.addresses.map(addressValue).filter(function(value) { return Boolean(value); })
+    : [];
+  addressesList.textContent = '';
+  if (addresses.length && !credentialsExpired) {
+    addresses.forEach(function(value) {
+      var item = document.createElement('div');
+      item.className = 'address-item';
+      item.textContent = toHttpAddress(value);
+      addressesList.appendChild(item);
+    });
+    addressesRow.style.display = 'flex';
+  } else {
+    addressesRow.style.display = 'none';
+  }
+
+  var pairingCode = firstText([info.pairingCode, info.pin]);
+  var pairingCodeRow = document.getElementById('pairingCodeRow');
+  document.getElementById('pairingCode').textContent = !credentialsExpired && pairingCode ? pairingCode : '--';
+  pairingCodeRow.style.display = !credentialsExpired && pairingCode ? 'flex' : 'none';
+
+  connectionValues = credentialsExpired
+    ? { fullLink: '', address: '' }
+    : { fullLink: fullLink, address: address };
+  copyLinkButton.disabled = !connectionValues.fullLink;
+  copyAddressButton.disabled = !connectionValues.address;
+  schedulePairingRefresh(expiresAt);
+}
+
+async function refreshConnectionInfo(version) {
+  try {
+    var raw = await invoke('get_connection_info');
+    if (version !== connectionRefreshVersion) return true;
+    renderConnectionInfo(parseConnectionInfo(raw));
+    setConnectionStatus('', false);
+    clearTopStatus('connection');
+    return true;
+  } catch (e) {
+    if (version === connectionRefreshVersion) {
+      clearConnectionCredentials();
+      reportError('连接信息加载失败', e);
+    }
+    return false;
+  }
+}
+
+function requestConnectionRefresh(options) {
+  options = options || {};
+  if (options.invalidate) clearConnectionCredentials();
+  if (options.event && connectionRefreshRunner && connectionRefreshEventQueued) {
+    return connectionRefreshRunner;
+  }
+  if (options.event) connectionRefreshEventQueued = true;
+  connectionRefreshVersion += 1;
+
+  if (!connectionRefreshRunner) {
+    connectionRefreshRunner = (async function() {
+      var result = true;
+      try {
+        await new Promise(function(resolve) { setTimeout(resolve, 30); });
+        while (connectionRefreshCompletedVersion < connectionRefreshVersion) {
+          var version = connectionRefreshVersion;
+          result = await refreshConnectionInfo(version);
+          connectionRefreshCompletedVersion = version;
+        }
+        return result;
+      } finally {
+        connectionRefreshRunner = null;
+        connectionRefreshEventQueued = false;
+      }
+    })();
+  }
+  return connectionRefreshRunner;
+}
+
+async function loadRandomPort() {
+  try {
+    var enabled = await invoke('get_random_port_enabled');
+    randomPortToggle.checked = booleanValue(enabled, false);
+  } catch (e) {
+    reportError('随机端口状态读取失败', e);
+  }
+}
+
+randomPortToggle.addEventListener('change', async function() {
   var enabled = randomPortToggle.checked;
   settingsStatus.textContent = '保存中...';
-  invoke('set_random_port_enabled', { enabled: enabled }).then(function() {
+  try {
+    await invoke('set_random_port_enabled', { enabled: enabled });
     settingsStatus.textContent = '已保存，下次启动生效';
-  }).catch(function(e) {
+  } catch (e) {
     randomPortToggle.checked = !enabled;
     settingsStatus.textContent = '保存失败';
-    console.error('set_random_port_enabled failed', e);
-  });
+    reportError('随机端口设置保存失败', e);
+  }
 });
 
-const { listen } = window.__TAURI__.event;
+async function copyText(value, label) {
+  if (!value) {
+    setConnectionStatus(label + '不可用', true);
+    return;
+  }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      var textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      try {
+        textarea.focus();
+        textarea.select();
+        if (!document.execCommand('copy')) throw new Error('剪贴板不可用');
+      } finally {
+        textarea.remove();
+      }
+    }
+    setConnectionStatus(label + '已复制', false);
+  } catch (e) {
+    reportError(label + '失败', e);
+  }
+}
 
-function renderDeviceList(clients) {
-  var section = document.getElementById('clientsSection');
-  var list = document.getElementById('clientsList');
-  if (!clients || clients.length === 0) {
+copyLinkButton.addEventListener('click', function() {
+  copyText(connectionValues.fullLink, '完整链接复制');
+});
+
+copyAddressButton.addEventListener('click', function() {
+  copyText(connectionValues.address, '地址复制');
+});
+
+rotatePairingButton.addEventListener('click', async function() {
+  rotatePairingButton.disabled = true;
+  setConnectionStatus('正在重新生成配对信息...', false);
+  try {
+    await invoke('rotate_pairing');
+    clearConnectionCredentials();
+    if (!await requestConnectionRefresh()) return;
+    showOperationSuccess('配对信息已更新', 'connection');
+  } catch (e) {
+    reportError('重新生成配对信息失败', e);
+  } finally {
+    rotatePairingButton.disabled = false;
+  }
+});
+
+function escapeHtml(s) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(textValue(s)));
+  return div.innerHTML;
+}
+
+function appendText(parent, tagName, className, value) {
+  var element = document.createElement(tagName);
+  element.className = className;
+  element.textContent = textValue(value);
+  parent.appendChild(element);
+  return element;
+}
+
+function appendButton(parent, className, label, handler, disabled) {
+  var button = document.createElement('button');
+  button.className = className;
+  button.type = 'button';
+  button.textContent = label;
+  button.disabled = Boolean(disabled);
+  button.addEventListener('click', handler);
+  parent.appendChild(button);
+  return button;
+}
+
+function clientIdValue(client) {
+  if (!client || typeof client !== 'object') return textValue(client);
+  return firstText([client.id, client.clientId, client.client_id, client.clientID]);
+}
+
+function deviceIdValue(device) {
+  if (!device || typeof device !== 'object') return '';
+  return firstText([device.device_id, device.deviceId, device.deviceID]);
+}
+
+function ipValue(device) {
+  if (!device || typeof device !== 'object') return '';
+  return firstText([device.ip, device.address, device.clientIp, device.client_ip]);
+}
+
+function nameValue(device) {
+  if (!device || typeof device !== 'object') return '';
+  return firstText([device.device_name, device.deviceName, device.name]);
+}
+
+function displayName(device) {
+  return nameValue(device) ||
+    (deviceIdValue(device) ? '设备 ' + deviceIdValue(device) : '') ||
+    (clientIdValue(device) ? '设备 ' + clientIdValue(device) : '') ||
+    '未命名设备';
+}
+
+function idEqual(left, right) {
+  var first = textValue(left);
+  var second = textValue(right);
+  return Boolean(first) && Boolean(second) && first === second;
+}
+
+function isController(client) {
+  var flag = fieldValue(client, ['is_controller', 'isController']);
+  return (flag.found && booleanValue(flag.value, false)) ||
+    idEqual(clientIdValue(client), securityState.controllerId) ||
+    idEqual(deviceIdValue(client), securityState.controllerId);
+}
+
+function sameDevice(left, right) {
+  var leftDeviceId = deviceIdValue(left);
+  var rightDeviceId = deviceIdValue(right);
+  if (leftDeviceId && rightDeviceId) return leftDeviceId === rightDeviceId;
+  var leftClientId = clientIdValue(left);
+  var rightClientId = clientIdValue(right);
+  return Boolean(leftClientId && rightClientId && leftClientId === rightClientId);
+}
+
+function deviceStatus(device) {
+  return firstText([
+    device && device.status,
+    device && device.connectionStatus,
+    device && device.connection_status,
+    device && device.authorizationStatus,
+    device && device.authorization_status,
+  ]).toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function isPendingDevice(device) {
+  var authorized = fieldValue(device, ['authorized', 'isAuthorized', 'is_authorized']);
+  if (authorized.found && booleanValue(authorized.value, true) === false) return true;
+  var status = deviceStatus(device);
+  if (status.indexOf('pending') !== -1 || status.indexOf('awaiting') !== -1 || status === 'requested') return true;
+  return securityState.pending.some(function(request) { return sameDevice(device, request); });
+}
+
+function isUsableAuthorization(device) {
+  var authorized = fieldValue(device, ['authorized', 'isAuthorized', 'is_authorized']);
+  if (authorized.found && booleanValue(authorized.value, true) === false) return false;
+  var status = deviceStatus(device);
+  return status !== 'revoked' && status !== 'blocked' && !isPendingDevice(device);
+}
+
+function deviceMeta(device, includeCreatedAt) {
+  var parts = [];
+  var deviceId = deviceIdValue(device);
+  var clientId = clientIdValue(device);
+  var ip = ipValue(device);
+  if (deviceId) parts.push('设备 ID: ' + deviceId);
+  else if (clientId) parts.push('连接 ID: ' + clientId);
+  if (ip) parts.push('IP: ' + ip);
+  if (includeCreatedAt) {
+    var createdAt = firstText([
+      device.connectedAt,
+      device.connected_at,
+      device.createdAt,
+      device.created_at,
+    ]);
+    if (createdAt) parts.push('申请时间: ' + formatTimestamp(createdAt));
+  }
+  return parts.join(' · ') || '暂无设备信息';
+}
+
+function setSecurityControlsEnabled(enabled) {
+  var controls = [inputPausedToggle, requireApprovalToggle, discoveryToggle, recheckKeyboardButton];
+  controls.forEach(function(control) {
+    if (control) control.disabled = !enabled;
+  });
+}
+
+function renderKeyboardStatus() {
+  var status = document.getElementById('keyboardStatus');
+  var banner = document.getElementById('permBanner');
+  if (securityState.keyboardHealthy === true) {
+    status.textContent = '正常';
+    banner.classList.remove('show');
+  } else if (securityState.keyboardHealthy === false) {
+    status.textContent = '需要辅助功能权限';
+    banner.classList.add('show');
+  } else {
+    status.textContent = '未检测';
+    banner.classList.remove('show');
+  }
+}
+
+function renderController() {
+  var value = document.getElementById('controllerValue');
+  var clients = (Array.isArray(securityState.clients) ? securityState.clients : []).filter(function(client) {
+    return !isPendingDevice(client);
+  });
+  var controller = null;
+  for (var i = 0; i < clients.length; i++) {
+    if (isController(clients[i])) {
+      controller = clients[i];
+      break;
+    }
+  }
+  if (controller) {
+    var label = displayName(controller);
+    if (ipValue(controller)) label += ' · ' + ipValue(controller);
+    value.textContent = label;
+  } else if (securityState.controllerId) {
+    value.textContent = '设备 ' + securityState.controllerId;
+  } else {
+    value.textContent = '未设置';
+  }
+}
+
+function renderPendingList(pending) {
+  var section = document.getElementById('pendingSection');
+  var list = document.getElementById('pendingList');
+  var count = document.getElementById('pendingCount');
+  var items = Array.isArray(pending) ? pending : [];
+  list.textContent = '';
+  count.textContent = items.length ? String(items.length) : '';
+  if (!items.length) {
     section.style.display = 'none';
     return;
   }
   section.style.display = 'flex';
-  list.innerHTML = '';
-  clients.forEach(function(c) {
+  items.forEach(function(request) {
+    var clientId = clientIdValue(request);
     var card = document.createElement('div');
-    card.className = 'client-card';
-    card.innerHTML =
-      '<div class="client-info">' +
-        '<div class="client-name">' + escapeHtml(c.device_name) + '</div>' +
-        '<div class="client-ip">' + escapeHtml(c.ip) + '</div>' +
-      '</div>' +
-      '<div class="client-actions">' +
-        '<button class="btn-disconnect">断开</button>' +
-        '<button class="btn-block">拉黑</button>' +
-      '</div>';
-    card.querySelector('.btn-disconnect').addEventListener('click', function() {
-      disconnectClient(c.id);
-    });
-    card.querySelector('.btn-block').addEventListener('click', function() {
-      blockClient(c.id);
-    });
+    card.className = 'pending-card';
+    var info = document.createElement('div');
+    info.className = 'pending-info';
+    appendText(info, 'div', 'pending-name', displayName(request));
+    appendText(info, 'div', 'pending-meta', deviceMeta(request, true));
+    card.appendChild(info);
+    var actions = document.createElement('div');
+    actions.className = 'card-actions';
+    appendButton(actions, 'btn-approve', '批准', function() {
+      approveConnection(clientId);
+    }, !clientId);
+    appendButton(actions, 'btn-reject', '拒绝', function() {
+      rejectConnection(clientId);
+    }, !clientId);
+    card.appendChild(actions);
     list.appendChild(card);
   });
 }
 
-function escapeHtml(s) {
-  var div = document.createElement('div');
-  div.appendChild(document.createTextNode(s));
-  return div.innerHTML;
+function renderDeviceList(clients) {
+  var section = document.getElementById('clientsSection');
+  var list = document.getElementById('clientsList');
+  var connected = (Array.isArray(clients) ? clients : []).filter(function(client) {
+    return !isPendingDevice(client);
+  });
+  var items = connected.map(function(client) {
+    return { device: client, connected: true };
+  });
+  (Array.isArray(securityState.authorizedDevices) ? securityState.authorizedDevices : []).forEach(function(device) {
+    if (!isUsableAuthorization(device)) return;
+    var alreadyConnected = connected.some(function(client) { return sameDevice(client, device); });
+    if (!alreadyConnected) items.push({ device: device, connected: false });
+  });
+  list.textContent = '';
+  if (!items.length) {
+    section.style.display = 'none';
+    renderController();
+    return;
+  }
+  section.style.display = 'flex';
+  items.forEach(function(item) {
+    var client = item.device;
+    var connected = item.connected;
+    var clientId = clientIdValue(client);
+    var revokeId = connected ? clientId : (deviceIdValue(client) || clientId);
+    var current = isController(client);
+    var card = document.createElement('div');
+    card.className = 'client-card';
+    var info = document.createElement('div');
+    info.className = 'client-info';
+    appendText(info, 'div', 'client-name', displayName(client));
+    appendText(info, 'div', 'client-ip', deviceMeta(client, false));
+    if (current) appendText(info, 'div', 'client-role', '当前控制设备');
+    else if (!connected) appendText(info, 'div', 'client-role', '离线授权设备');
+    card.appendChild(info);
+    var actions = document.createElement('div');
+    actions.className = 'client-actions';
+    if (connected) {
+      appendButton(actions, 'btn-disconnect', '断开', function() {
+        disconnectClient(clientId);
+      }, !clientId);
+      appendButton(actions, 'btn-controller', current ? '当前控制' : '设为控制', function() {
+        setController(clientId);
+      }, !clientId || current);
+    }
+    appendButton(actions, 'btn-revoke', '撤销授权', function() {
+      revokeClient(revokeId);
+    }, !revokeId);
+    if (connected) {
+      appendButton(actions, 'btn-block', '拉黑', function() {
+        blockClient(clientId, client);
+      }, !clientId);
+    }
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+  renderController();
 }
 
-function disconnectClient(id) {
-  invoke('disconnect_device', { clientId: id }).catch(function(e) {
-    console.error('disconnect failed', e);
+function renderBlocklist(blocklist) {
+  var section = document.getElementById('blocklistSection');
+  var list = document.getElementById('blocklistList');
+  var count = document.getElementById('blocklistCount');
+  var items = Array.isArray(blocklist) ? blocklist : [];
+  list.textContent = '';
+  count.textContent = items.length ? String(items.length) : '';
+  if (!items.length) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'flex';
+  items.forEach(function(entry) {
+    var card = document.createElement('div');
+    card.className = 'block-card';
+    var info = document.createElement('div');
+    info.className = 'block-info';
+    appendText(info, 'div', 'block-name', displayName(entry));
+    appendText(info, 'div', 'block-meta', deviceMeta(entry, false));
+    card.appendChild(info);
+    var actions = document.createElement('div');
+    actions.className = 'card-actions';
+    appendButton(actions, 'btn-unblock', '解除拉黑', function() {
+      unblockDevice(entry);
+    }, !deviceIdValue(entry) && !ipValue(entry));
+    card.appendChild(actions);
+    list.appendChild(card);
   });
 }
 
-function blockClient(id) {
-  invoke('block_device', { clientId: id }).catch(function(e) {
-    console.error('block failed', e);
+function renderSecurityState() {
+  inputPausedToggle.checked = Boolean(securityState.paused);
+  requireApprovalToggle.checked = Boolean(securityState.requireApproval);
+  discoveryToggle.checked = Boolean(securityState.discoveryEnabled);
+  renderKeyboardStatus();
+  renderPendingList(securityState.pending);
+  renderDeviceList(securityState.clients);
+  renderBlocklist(securityState.blocklist);
+}
+
+function isSecurityStateLike(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  var names = [
+    'paused', 'inputPaused', 'input_paused', 'requireApproval', 'require_approval',
+    'discoveryEnabled', 'discovery_enabled', 'mdnsEnabled', 'mdns_enabled',
+    'controllerId', 'controller_id', 'keyboardHealthy', 'keyboard_healthy',
+    'pending', 'pendingClients', 'pending_clients', 'clients', 'connectedClients', 'connected_clients',
+    'blocklist', 'blockList', 'blacklist', 'authorizedDevices', 'authorized_devices',
+  ];
+  for (var i = 0; i < names.length; i++) {
+    if (Object.prototype.hasOwnProperty.call(value, names[i])) return true;
+  }
+  return false;
+}
+
+function unwrapSecurityState(raw) {
+  var value = parsePayload(raw, '安全状态');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('安全状态格式无效');
+  }
+  var nested = fieldValue(value, ['securityState', 'security_state', 'state', 'data']);
+  if (nested.found && nested.value && typeof nested.value === 'object' && !Array.isArray(nested.value)) {
+    if (isSecurityStateLike(nested.value)) return nested.value;
+  }
+  return value;
+}
+
+function keyboardHealthyValue(raw) {
+  var value = raw;
+  if (typeof value === 'string') {
+    var normalized = value.toLowerCase().trim();
+    if (normalized === 'healthy' || normalized === 'ok' || normalized === 'granted' || normalized === '正常' || normalized === '已授权') return true;
+    if (normalized === 'unhealthy' || normalized === 'denied' || normalized === 'needed' || normalized === 'required' || normalized === '失败' || normalized === '未授权') return false;
+    var parsed;
+    try { parsed = JSON.parse(value); } catch (_) { parsed = value; }
+    if (parsed !== value) value = parsed;
+  }
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    var field = fieldValue(value, ['keyboardHealthy', 'keyboard_healthy', 'healthy', 'granted', 'enabled', 'status']);
+    if (field.found) return keyboardHealthyValue(field.value);
+  }
+  return null;
+}
+
+function applySecurityState(raw) {
+  var state = unwrapSecurityState(raw);
+  var paused = fieldValue(state, ['paused', 'inputPaused', 'input_paused']);
+  var approval = fieldValue(state, ['requireApproval', 'require_approval']);
+  var discovery = fieldValue(state, ['discoveryEnabled', 'discovery_enabled', 'mdnsEnabled', 'mdns_enabled']);
+  var controller = fieldValue(state, ['controllerId', 'controller_id']);
+  var keyboard = fieldValue(state, ['keyboardHealthy', 'keyboard_healthy']);
+  var pending = fieldValue(state, ['pending', 'pendingClients', 'pending_clients']);
+  var clients = fieldValue(state, ['clients', 'connectedClients', 'connected_clients']);
+  var blocklist = fieldValue(state, ['blocklist', 'blockList', 'blacklist']);
+  var authorizedDevices = fieldValue(state, ['authorizedDevices', 'authorized_devices']);
+
+  if (paused.found) securityState.paused = booleanValue(paused.value, false);
+  if (approval.found) securityState.requireApproval = booleanValue(approval.value, false);
+  if (discovery.found) securityState.discoveryEnabled = booleanValue(discovery.value, false);
+  if (controller.found) securityState.controllerId = textValue(controller.value);
+  if (keyboard.found) securityState.keyboardHealthy = keyboardHealthyValue(keyboard.value);
+  if (pending.found) securityState.pending = arrayValue(pending.value, '待审批设备');
+  if (clients.found) securityState.clients = arrayValue(clients.value, '已连接设备');
+  if (blocklist.found) securityState.blocklist = arrayValue(blocklist.value, '黑名单');
+  if (authorizedDevices.found) securityState.authorizedDevices = arrayValue(authorizedDevices.value, '授权设备');
+
+  renderSecurityState();
+  return true;
+}
+
+function applyCommandResult(raw) {
+  if (raw === undefined || raw === null || raw === '') return;
+  var value = raw;
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch (_) { return; }
+  }
+  if (isSecurityStateLike(value)) applySecurityState(value);
+}
+
+function setKeyboardStatus(raw) {
+  var value;
+  try {
+    value = parsePayload(raw, '键盘权限状态');
+  } catch (e) {
+    if (typeof raw !== 'string') throw e;
+    value = raw;
+  }
+  if (isSecurityStateLike(value)) {
+    applySecurityState(value);
+    return securityState.keyboardHealthy;
+  }
+  var healthy = keyboardHealthyValue(value);
+  if (healthy === null) throw new Error('键盘权限状态格式无效');
+  securityState.keyboardHealthy = healthy;
+  renderKeyboardStatus();
+  return healthy;
+}
+
+function removeById(items, id) {
+  return (Array.isArray(items) ? items : []).filter(function(item) {
+    return !idEqual(clientIdValue(item), id) && !idEqual(deviceIdValue(item), id);
   });
 }
 
-// Load initial connected devices
-invoke('get_connected_devices').then(function(raw) {
-  renderDeviceList(JSON.parse(raw));
-}).catch(function(e) {
-  console.error('get_connected_devices failed', e);
+function addBlockEntry(client) {
+  var entry = {
+    device_id: deviceIdValue(client),
+    ip: ipValue(client),
+    device_name: nameValue(client),
+  };
+  if (!entry.device_id && !entry.ip && !entry.device_name) return;
+  var exists = securityState.blocklist.some(function(item) {
+    var sameDevice = entry.device_id && deviceIdValue(item) === entry.device_id;
+    var sameIp = entry.ip && ipValue(item) === entry.ip;
+    return Boolean(sameDevice || sameIp);
+  });
+  if (!exists) securityState.blocklist = securityState.blocklist.concat([entry]);
+}
+
+function removeBlockEntry(entry) {
+  var deviceId = deviceIdValue(entry);
+  var ip = ipValue(entry);
+  securityState.blocklist = securityState.blocklist.filter(function(item) {
+    var sameDevice = deviceId && deviceIdValue(item) === deviceId;
+    var sameIp = ip && ipValue(item) === ip;
+    return !(sameDevice || sameIp);
+  });
+}
+
+async function runSecurityCommand(command, args, failureMessage, successMessage, afterSuccess) {
+  try {
+    var raw = await invoke(command, args || {});
+    applyCommandResult(raw);
+    if (afterSuccess) afterSuccess();
+    if (await loadSecurityState({ silent: true })) {
+      showOperationSuccess(successMessage, 'security');
+    }
+    return true;
+  } catch (e) {
+    reportSecurityError(failureMessage, e);
+    return false;
+  }
+}
+
+function confirmAction(message) {
+  return typeof window.confirm === 'function' && window.confirm(message);
+}
+
+function approveConnection(clientId) {
+  if (!clientId) {
+    reportSecurityError('批准设备失败', new Error('设备标识缺失'));
+    return;
+  }
+  runSecurityCommand(
+    'approve_connection',
+    { clientId: clientId },
+    '批准设备失败',
+    '设备已批准',
+    function() {
+      securityState.pending = removeById(securityState.pending, clientId);
+      renderSecurityState();
+    }
+  );
+}
+
+function rejectConnection(clientId) {
+  if (!clientId) {
+    reportSecurityError('拒绝设备失败', new Error('设备标识缺失'));
+    return;
+  }
+  runSecurityCommand(
+    'reject_connection',
+    { clientId: clientId },
+    '拒绝设备失败',
+    '连接申请已拒绝',
+    function() {
+      securityState.pending = removeById(securityState.pending, clientId);
+      renderSecurityState();
+    }
+  );
+}
+
+function setController(clientId) {
+  if (!clientId) {
+    reportSecurityError('设置控制设备失败', new Error('设备标识缺失'));
+    return;
+  }
+  runSecurityCommand(
+    'set_controller',
+    { clientId: clientId },
+    '设置控制设备失败',
+    '控制设备已更新',
+    function() {
+      securityState.controllerId = clientId;
+      securityState.clients.forEach(function(client) {
+        client.is_controller = idEqual(clientIdValue(client), clientId);
+      });
+      renderSecurityState();
+    }
+  );
+}
+
+function revokeClient(clientId) {
+  if (!clientId) {
+    reportSecurityError('撤销设备授权失败', new Error('设备标识缺失'));
+    return;
+  }
+  if (!confirmAction('撤销该设备授权后，它将不能继续连接，确定吗？')) return;
+  runSecurityCommand(
+    'revoke_device',
+    { clientId: clientId },
+    '撤销设备授权失败',
+    '设备授权已撤销',
+    function() {
+      securityState.clients = removeById(securityState.clients, clientId);
+      securityState.authorizedDevices = removeById(securityState.authorizedDevices, clientId);
+      if (idEqual(securityState.controllerId, clientId)) securityState.controllerId = '';
+      renderSecurityState();
+    }
+  );
+}
+
+function disconnectClient(clientId) {
+  if (!clientId) {
+    reportBoth('断开设备失败', new Error('设备标识缺失'));
+    return;
+  }
+  runSecurityCommand(
+    'disconnect_device',
+    { clientId: clientId },
+    '断开设备失败',
+    '设备已断开',
+    function() {
+      securityState.clients = removeById(securityState.clients, clientId);
+      renderSecurityState();
+    }
+  );
+}
+
+function blockClient(clientId, client) {
+  if (!clientId) {
+    reportBoth('拉黑设备失败', new Error('设备标识缺失'));
+    return;
+  }
+  if (!confirmAction('拉黑该设备后，它将被断开且不能再次连接，确定吗？')) return;
+  var blockedClient = client || securityState.clients.filter(function(item) {
+    return idEqual(clientIdValue(item), clientId);
+  })[0] || {};
+  runSecurityCommand(
+    'block_device',
+    { clientId: clientId },
+    '拉黑设备失败',
+    '设备已拉黑',
+    function() {
+      addBlockEntry(blockedClient);
+      securityState.clients = removeById(securityState.clients, clientId);
+      securityState.authorizedDevices = removeById(securityState.authorizedDevices, deviceIdValue(blockedClient) || clientId);
+      if (idEqual(securityState.controllerId, clientId)) securityState.controllerId = '';
+      renderSecurityState();
+    }
+  );
+}
+
+function unblockDevice(entry) {
+  var deviceId = deviceIdValue(entry);
+  var ip = ipValue(entry);
+  if (!deviceId && !ip) {
+    reportSecurityError('解除拉黑失败', new Error('黑名单项缺少设备标识或 IP'));
+    return;
+  }
+  if (!confirmAction('解除拉黑后，该设备可以再次尝试连接，确定吗？')) return;
+  runSecurityCommand(
+    'unblock_device',
+    { deviceId: deviceId || ip },
+    '解除拉黑失败',
+    '设备已解除拉黑',
+    function() {
+      removeBlockEntry(entry);
+      renderSecurityState();
+    }
+  );
+}
+
+async function saveSecurityToggle(toggle, command, enabled, failureMessage, successMessage, apply, refreshPairing) {
+  toggle.disabled = true;
+  try {
+    var raw = await invoke(command, { enabled: enabled });
+    applyCommandResult(raw);
+    apply();
+    renderSecurityState();
+    var securityRefreshed = await loadSecurityState({ silent: true });
+    var connectionRefreshed = refreshPairing
+      ? await requestConnectionRefresh({ invalidate: true })
+      : true;
+    if (securityRefreshed && connectionRefreshed) {
+      showOperationSuccess(successMessage, 'security');
+    }
+  } catch (e) {
+    toggle.checked = !enabled;
+    reportSecurityError(failureMessage, e);
+  } finally {
+    toggle.disabled = securityUnsupported;
+  }
+}
+
+inputPausedToggle.addEventListener('change', function() {
+  var enabled = inputPausedToggle.checked;
+  if (enabled && !confirmAction('暂停接收输入会断开所有已连接设备，确定继续吗？')) {
+    inputPausedToggle.checked = false;
+    setSecurityStatus('已取消暂停', false);
+    return;
+  }
+  saveSecurityToggle(
+    inputPausedToggle,
+    'set_input_paused',
+    enabled,
+    '暂停设置失败',
+    enabled ? '已暂停接收输入，设备已断开' : '已恢复接收输入',
+    function() {
+      securityState.paused = enabled;
+      if (enabled) {
+        securityState.clients = [];
+        securityState.controllerId = '';
+      }
+    },
+    true
+  );
 });
 
-// Listen for real-time updates
-listen('clients-changed', function(event) {
-  renderDeviceList(event.payload);
+requireApprovalToggle.addEventListener('change', function() {
+  var enabled = requireApprovalToggle.checked;
+  saveSecurityToggle(
+    requireApprovalToggle,
+    'set_require_approval',
+    enabled,
+    '审批设置失败',
+    enabled ? '已开启连接审批' : '已关闭连接审批',
+    function() { securityState.requireApproval = enabled; }
+  );
 });
 
-// Listen for keyboard permission warning
-listen('keyboard-permission-needed', function() {
-  var banner = document.getElementById('permBanner');
-  banner.classList.add('show');
+discoveryToggle.addEventListener('change', function() {
+  var enabled = discoveryToggle.checked;
+  saveSecurityToggle(
+    discoveryToggle,
+    'set_discovery_enabled',
+    enabled,
+    'mDNS 发现设置失败',
+    enabled ? '已开启 mDNS 发现' : '已关闭 mDNS 发现',
+    function() { securityState.discoveryEnabled = enabled; }
+  );
+});
+
+recheckKeyboardButton.addEventListener('click', async function() {
+  recheckKeyboardButton.disabled = true;
+  setSecurityStatus('正在重新检测键盘权限...', false);
+  try {
+    var raw = await invoke('recheck_keyboard_permission');
+    var healthy = null;
+    if (raw !== undefined && raw !== null && raw !== '') healthy = setKeyboardStatus(raw);
+    if (healthy === true) setSecurityStatus('键盘权限正常', false);
+    else if (healthy === false) setSecurityStatus('仍需要辅助功能权限', true);
+    else setSecurityStatus('键盘权限检测请求已发送', false);
+  } catch (e) {
+    reportSecurityError('键盘权限重新检测失败', e);
+  } finally {
+    recheckKeyboardButton.disabled = securityUnsupported;
+  }
+});
+
+function handleSecurityStateChanged(payload) {
+  var wasPaused = securityState.paused;
+  applySecurityState(payload);
+  securityStateLoaded = true;
+  securityUnsupported = false;
+  setSecurityControlsEnabled(true);
+  if (wasPaused !== securityState.paused) {
+    requestConnectionRefresh({ invalidate: true, event: true });
+  }
+}
+
+function handlePairingChanged() {
+  requestConnectionRefresh({ invalidate: true, event: true });
+}
+
+function handleConnectionRequested(payload) {
+  var value = parsePayload(payload, '连接申请');
+  if (value && typeof value === 'object' && value.pending && typeof value.pending === 'object' && !Array.isArray(value.pending)) value = value.pending;
+  if (isSecurityStateLike(value)) {
+    applySecurityState(value);
+    securityStateLoaded = true;
+    securityUnsupported = false;
+    setSecurityControlsEnabled(true);
+    return;
+  }
+  if (value && typeof value === 'object' && value.request && typeof value.request === 'object') value = value.request;
+  if (value && typeof value === 'object' && value.client && typeof value.client === 'object') value = value.client;
+  var clientId = clientIdValue(value);
+  if (!clientId) throw new Error('连接申请缺少设备标识');
+  var pending = securityState.pending.slice();
+  var replaced = false;
+  for (var i = 0; i < pending.length; i++) {
+    if (idEqual(clientIdValue(pending[i]), clientId)) {
+      pending[i] = value;
+      replaced = true;
+      break;
+    }
+  }
+  if (!replaced) pending.push(value);
+  securityState.pending = pending;
+  renderPendingList(pending);
+  setSecurityStatus('收到新的连接申请', false);
+}
+
+function handleClientsChanged(payload) {
+  var value = parsePayload(payload, '设备状态');
+  if (Array.isArray(value)) {
+    securityState.clients = arrayValue(value, '已连接设备');
+    renderDeviceList(securityState.clients);
+    return;
+  }
+  if (value && typeof value === 'object' && (Array.isArray(value.clients) || isSecurityStateLike(value))) {
+    applySecurityState(value);
+    securityStateLoaded = true;
+    securityUnsupported = false;
+    setSecurityControlsEnabled(true);
+    return;
+  }
+  throw new Error('设备状态格式无效');
+}
+
+function handleKeyboardStatusChanged(payload) {
+  setKeyboardStatus(payload);
+}
+
+function handleLegacyKeyboardWarning() {
+  securityState.keyboardHealthy = false;
+  renderKeyboardStatus();
+  setSecurityStatus('需要辅助功能权限', true);
+}
+
+function registerEvent(eventName, handler, label) {
+  try {
+    listen(eventName, function(event) {
+      try {
+        handler(event ? event.payload : undefined);
+      } catch (e) {
+        reportError(label + '处理失败', e);
+      }
+    }).catch(function(e) {
+      reportError(label + '监听失败', e);
+    });
+  } catch (e) {
+    reportError(label + '监听失败', e);
+  }
+}
+
+function registerSecurityListeners() {
+  if (securityListenersRegistered) return;
+  securityListenersRegistered = true;
+  registerEvent('security-state-changed', handleSecurityStateChanged, '安全状态');
+  registerEvent('connection-requested', handleConnectionRequested, '连接申请');
+  registerEvent('clients-changed', handleClientsChanged, '设备状态');
+  registerEvent('keyboard-status-changed', handleKeyboardStatusChanged, '键盘权限状态');
+  registerEvent('keyboard-permission-needed', handleLegacyKeyboardWarning, '权限状态');
+  registerEvent('pairing-changed', handlePairingChanged, '配对信息');
+}
+
+function markSecurityUnsupported() {
+  securityUnsupported = true;
+  setSecurityControlsEnabled(false);
+  setSecurityStatus('当前版本不支持', true);
+  setConnectionStatus('安全控制：当前版本不支持', true);
+}
+
+async function loadSecurityState(options) {
+  options = options || {};
+  if (!options.silent) setSecurityStatus('正在加载安全状态...', false);
+  try {
+    var raw = await invoke('get_security_state');
+    applySecurityState(raw);
+    securityStateLoaded = true;
+    securityUnsupported = false;
+    setSecurityControlsEnabled(true);
+    if (!options.silent) setSecurityStatus('', false);
+    return true;
+  } catch (e) {
+    if (isUnsupportedError(e)) markSecurityUnsupported();
+    else reportSecurityError('安全状态加载失败', e);
+    return false;
+  }
+}
+
+async function loadLegacyClients() {
+  try {
+    var raw = await invoke('get_connected_devices');
+    var value = parsePayload(raw, '已连接设备');
+    var clients = Array.isArray(value)
+      ? value
+      : value && Array.isArray(value.clients) ? value.clients : null;
+    if (!clients) throw new Error('已连接设备格式无效');
+    securityState.clients = arrayValue(clients, '已连接设备');
+    renderDeviceList(securityState.clients);
+  } catch (e) {
+    reportBoth('已连接设备加载失败', e);
+  }
+}
+
+function reportBoth(message, error) {
+  var rendered = reportError(message, error);
+  setSecurityStatus(rendered, true);
+  return rendered;
+}
+
+async function initialize() {
+  registerSecurityListeners();
+  await requestConnectionRefresh();
+  await loadRandomPort();
+  var loaded = await loadSecurityState();
+  if (!loaded && !securityStateLoaded) await loadLegacyClients();
+}
+
+window.addEventListener('focus', refreshIfPairingExpiring);
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') refreshIfPairingExpiring();
+});
+window.addEventListener('pagehide', function() {
+  clearPairingExpiryTimer();
+  clearTimeout(topStatusTimer);
+});
+
+initialize().catch(function(e) {
+  reportBoth('界面初始化失败', e);
 });
 </script>
 </body>
