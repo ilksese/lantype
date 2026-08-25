@@ -3,6 +3,8 @@ pub mod phone;
 pub mod qr;
 pub mod tray;
 
+use std::future::Future;
+use std::io;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 
@@ -121,20 +123,6 @@ async fn block_device(
     }
     state.ws_server.emit_state(&app).await;
     Ok(())
-}
-
-#[tauri::command]
-async fn get_random_port_enabled(state: State<'_, AppState>) -> Result<bool, String> {
-    Ok(state.config.lock().await.random_port)
-}
-
-#[tauri::command]
-async fn set_random_port_enabled(state: State<'_, AppState>, enabled: bool) -> Result<(), String> {
-    let mut config = state.config.lock().await;
-    config.random_port = enabled;
-    config
-        .save()
-        .map_err(|error| format!("Failed to save random port setting: {error}"))
 }
 
 #[tauri::command]
@@ -346,6 +334,30 @@ async fn set_discovery_enabled(
     Ok(())
 }
 
+async fn bind_listener_from(start_port: u16) -> io::Result<(TcpListener, u16)> {
+    bind_port_with(start_port, |port| async move { TcpListener::bind(("0.0.0.0", port)).await })
+        .await
+}
+
+async fn bind_port_with<T, F, Fut>(start_port: u16, mut try_bind: F) -> io::Result<(T, u16)>
+where
+    F: FnMut(u16) -> Fut,
+    Fut: Future<Output = io::Result<T>>,
+{
+    for port in start_port..=u16::MAX {
+        match try_bind(port).await {
+            Ok(value) => return Ok((value, port)),
+            Err(error) if error.kind() == io::ErrorKind::AddrInUse => continue,
+            Err(error) => return Err(error),
+        }
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::AddrNotAvailable,
+        "no free port found",
+    ))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
@@ -370,37 +382,13 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let config_snapshot = config.lock().await.clone();
                 let listen_port = config_snapshot.listen_port();
-
-                let listener = if listen_port == 0 {
-                    match TcpListener::bind("0.0.0.0:0").await {
-                        Ok(listener) => listener,
-                        Err(error) => {
-                            log::error!("Failed to bind random port: {error}");
-                            return;
-                        }
-                    }
-                } else {
-                    match TcpListener::bind(("0.0.0.0", listen_port)).await {
-                        Ok(listener) => {
-                            log::info!("Server bound to configured port {listen_port}");
-                            listener
-                        }
-                        Err(error) => {
-                            log::warn!(
-                                "Failed to bind configured port {listen_port} ({error}), falling back to random port"
-                            );
-                            match TcpListener::bind("0.0.0.0:0").await {
-                                Ok(listener) => listener,
-                                Err(error) => {
-                                    log::error!("Failed to bind fallback port: {error}");
-                                    return;
-                                }
-                            }
-                        }
+                let (listener, actual_port) = match bind_listener_from(listen_port).await {
+                    Ok(result) => result,
+                    Err(error) => {
+                        log::error!("Failed to bind port range starting at {listen_port}: {error}");
+                        return;
                     }
                 };
-
-                let actual_port = listener.local_addr().map(|address| address.port()).unwrap_or(0);
                 log::info!("Server listening on port {actual_port}");
 
                 let ws_server = Arc::new(WsServer::with_options(
@@ -511,8 +499,6 @@ pub fn run() {
             get_connected_devices,
             disconnect_device,
             block_device,
-            get_random_port_enabled,
-            set_random_port_enabled,
             get_security_state,
             set_input_paused,
             set_require_approval,
@@ -582,4 +568,32 @@ fn get_lan_ips() -> Vec<String> {
     ips.sort();
     ips.dedup();
     ips
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn bind_port_with_skips_ports_in_use() {
+        let seen = std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let calls = seen.clone();
+
+        let result = bind_port_with(2777, move |port| {
+            let calls = calls.clone();
+            async move {
+                calls.lock().await.push(port);
+                if port < 2779 {
+                    Err(io::Error::new(io::ErrorKind::AddrInUse, "occupied"))
+                } else {
+                    Ok(port)
+                }
+            }
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(*seen.lock().await, vec![2777, 2778, 2779]);
+        assert_eq!(result, (2779, 2779));
+    }
 }

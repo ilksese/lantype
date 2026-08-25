@@ -492,17 +492,6 @@ button:focus-visible { outline: 2px solid #c4b5fd; outline-offset: 2px; }
     </div>
     <div class="blocklist-list" id="blocklistList"></div>
   </div>
-  <div class="settings-row">
-    <div class="settings-text">
-      <div class="settings-title">随机端口</div>
-      <div class="settings-note">未配置固定端口时，下次启动生效</div>
-    </div>
-    <label class="switch" aria-label="随机端口">
-      <input type="checkbox" id="randomPortToggle">
-      <span class="slider"></span>
-    </label>
-  </div>
-  <div class="settings-status" id="settingsStatus"></div>
   <div class="hint">扫码连接 · 手机浏览器输入文字</div>
 </div>
 <script>
@@ -544,8 +533,6 @@ var connectionRefreshRunner = null;
 var connectionRefreshEventQueued = false;
 var topStatusTimer = null;
 var topStatusScope = '';
-var randomPortToggle = document.getElementById('randomPortToggle');
-var settingsStatus = document.getElementById('settingsStatus');
 var inputPausedToggle = document.getElementById('inputPausedToggle');
 var requireApprovalToggle = document.getElementById('requireApprovalToggle');
 var discoveryToggle = document.getElementById('discoveryToggle');
@@ -955,28 +942,6 @@ function requestConnectionRefresh(options) {
   }
   return connectionRefreshRunner;
 }
-
-async function loadRandomPort() {
-  try {
-    var enabled = await invoke('get_random_port_enabled');
-    randomPortToggle.checked = booleanValue(enabled, false);
-  } catch (e) {
-    reportError('随机端口状态读取失败', e);
-  }
-}
-
-randomPortToggle.addEventListener('change', async function() {
-  var enabled = randomPortToggle.checked;
-  settingsStatus.textContent = '保存中...';
-  try {
-    await invoke('set_random_port_enabled', { enabled: enabled });
-    settingsStatus.textContent = '已保存，下次启动生效';
-  } catch (e) {
-    randomPortToggle.checked = !enabled;
-    settingsStatus.textContent = '保存失败';
-    reportError('随机端口设置保存失败', e);
-  }
-});
 
 async function copyText(value, label) {
   if (!value) {
@@ -1846,7 +1811,6 @@ function reportBoth(message, error) {
 async function initialize() {
   registerSecurityListeners();
   await requestConnectionRefresh();
-  await loadRandomPort();
   var loaded = await loadSecurityState();
   if (!loaded && !securityStateLoaded) await loadLegacyClients();
 }

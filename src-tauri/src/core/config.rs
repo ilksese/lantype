@@ -7,7 +7,7 @@ use serde_json::Value;
 
 pub const DEFAULT_PORT: u16 = 2777;
 
-/// Port configuration: "auto" (random port) or a fixed port number (1-65535).
+/// Port configuration: "auto" (default port range) or a fixed port number (1-65535).
 #[derive(Debug, Clone, Default)]
 pub enum PortConfig {
     #[default]
@@ -42,8 +42,6 @@ pub struct Config {
     pub port_configured: bool,
     #[serde(skip)]
     pub http_port_configured: bool,
-    #[serde(default)]
-    pub random_port: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nickname: Option<String>,
     #[serde(default)]
@@ -61,7 +59,6 @@ impl Default for Config {
             http_port: PortConfig::Auto,
             port_configured: false,
             http_port_configured: false,
-            random_port: false,
             nickname: None,
             blocklist: Vec::new(),
             require_approval: true,
@@ -172,22 +169,18 @@ impl Config {
         if self.http_port_configured {
             return match self.http_port {
                 PortConfig::Fixed(port) => port,
-                PortConfig::Auto => 0,
+                PortConfig::Auto => DEFAULT_PORT,
             };
         }
 
         if self.port_configured {
             return match self.port {
                 PortConfig::Fixed(port) => port,
-                PortConfig::Auto => 0,
+                PortConfig::Auto => DEFAULT_PORT,
             };
         }
 
-        if self.random_port {
-            0
-        } else {
-            DEFAULT_PORT
-        }
+        DEFAULT_PORT
     }
 }
 
