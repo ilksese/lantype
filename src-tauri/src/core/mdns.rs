@@ -7,6 +7,9 @@ pub struct MdnsService {
     daemon: Option<ServiceDaemon>,
     device_name: String,
     port: u16,
+    discovery_enabled: bool,
+    addresses: Vec<String>,
+    service_fullname: Option<String>,
 }
 
 impl MdnsService {
@@ -15,10 +18,19 @@ impl MdnsService {
             daemon: None,
             device_name,
             port,
+            discovery_enabled: true,
+            addresses: Vec::new(),
+            service_fullname: None,
         }
     }
 
     pub fn start(&mut self, addresses: Vec<String>) -> Result<(), String> {
+        self.addresses = addresses;
+        if !self.discovery_enabled {
+            return Ok(());
+        }
+
+        self.stop();
         let daemon = ServiceDaemon::new().map_err(|e| format!("mdns daemon: {e}"))?;
 
         let mut properties = HashMap::new();
@@ -28,11 +40,12 @@ impl MdnsService {
             SERVICE_TYPE,
             &self.device_name,
             &format!("{}.local.", self.device_name),
-            addresses.as_slice(),
+            self.addresses.as_slice(),
             self.port,
             properties,
         )
         .map_err(|e| format!("service info: {e}"))?;
+        self.service_fullname = Some(service_info.get_fullname().to_string());
 
         daemon
             .register(service_info)
@@ -42,9 +55,31 @@ impl MdnsService {
         Ok(())
     }
 
+    pub fn set_discovery_enabled(
+        &mut self,
+        enabled: bool,
+        addresses: Vec<String>,
+    ) -> Result<(), String> {
+        self.discovery_enabled = enabled;
+        self.addresses = addresses;
+        self.stop();
+        if enabled {
+            self.start(self.addresses.clone())?;
+        }
+        Ok(())
+    }
+
     pub fn stop(&mut self) {
+        let fullname = self.service_fullname.take();
         if let Some(daemon) = self.daemon.take() {
-            drop(daemon);
+            if let Some(fullname) = fullname {
+                if let Ok(status) = daemon.unregister(&fullname) {
+                    let _ = status.recv_timeout(std::time::Duration::from_secs(1));
+                }
+            }
+            if let Ok(status) = daemon.shutdown() {
+                let _ = status.recv_timeout(std::time::Duration::from_secs(1));
+            }
         }
     }
 }

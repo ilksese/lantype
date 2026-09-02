@@ -55,6 +55,11 @@
   color: #bbf7d0;
 }
 
+.toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .toggleText {
   font-size: 12px;
   line-height: 1;
@@ -153,6 +158,255 @@
   font-weight: 500;
 }
 
+.connectionActions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.connectionAction {
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ddd;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.connectionAction:active {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.connectionOverlay {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  border: 0;
+  background-color: transparent;
+  color: inherit;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.connectionOverlay[open] {
+  display: flex;
+}
+
+.connectionOverlay:not([open]) {
+  display: none;
+}
+
+.connectionOverlay::backdrop {
+  background-color: rgba(8, 8, 20, 0.78);
+}
+
+.connectionPanel {
+  width: min(100%, 410px);
+  max-height: calc(100dvh - 36px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background-color: #23233b;
+  color: #eee;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.connectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.connectionTitle {
+  margin: 0;
+  color: #ddd6fe;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.connectionClose {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #bbb;
+  font-family: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.connectionError {
+  margin-bottom: 14px;
+  padding: 9px 11px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 6px;
+  background-color: rgba(185, 28, 28, 0.2);
+  color: #fecaca;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.connectionForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.connectionLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #c4c4cc;
+  font-size: 12px;
+}
+
+.connectionInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  outline: none;
+  background-color: rgba(0, 0, 0, 0.2);
+  color: #f5f5f5;
+  font: inherit;
+  font-size: 14px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.connectionInput::placeholder {
+  color: #6f6f7a;
+}
+
+.connectionInput:focus {
+  border-color: rgba(167, 139, 250, 0.75);
+  background-color: rgba(0, 0, 0, 0.28);
+}
+
+.connectionFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 10px;
+}
+
+.connectionHint {
+  margin-top: -3px;
+  color: #858592;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.connectionSubmit {
+  min-height: 42px;
+  margin-top: 2px;
+  border: 0;
+  border-radius: 6px;
+  background-color: #7c3aed;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.connectionSubmit:active {
+  background-color: #6d28d9;
+}
+
+.connectionRecovery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+@media (max-width: 360px) {
+  .connectionOverlay {
+    padding: 10px;
+  }
+
+  .connectionPanel {
+    padding: 16px;
+  }
+
+  .connectionFields {
+    grid-template-columns: minmax(0, 1fr) 82px;
+  }
+}
+
+.syncRow {
+  min-height: 34px;
+  padding: 2px 16px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: #737373;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.syncText {
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.syncGood {
+  color: #4ade80;
+}
+
+.syncWorking {
+  color: #facc15;
+}
+
+.syncProblem {
+  color: #fca5a5;
+}
+
+.syncActions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.syncAction {
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #eee;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.syncAction:active {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
 .inputWrap {
   flex: 1;
   display: flex;
@@ -172,6 +426,8 @@
   background-color: rgba(255, 255, 255, 0.06);
   color: #eee;
   font-family: inherit;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .textarea::placeholder {

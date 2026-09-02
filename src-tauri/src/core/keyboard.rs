@@ -1,18 +1,54 @@
+use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+use tokio::sync::oneshot;
+
+type CommandResult = Result<(), String>;
+type Completion = oneshot::Sender<CommandResult>;
 
 enum Command {
-    TypeText(String),
-    DeleteChars(u32),
-    PressChord { modifiers: Vec<Modifier>, key: Key },
+    TypeText {
+        text: String,
+        completion: Completion,
+    },
+    DeleteChars {
+        count: u32,
+        completion: Completion,
+    },
+    ApplyDiff {
+        backspace: u32,
+        text: String,
+        completion: Completion,
+    },
+    PressChord {
+        modifiers: Vec<Modifier>,
+        key: Key,
+        completion: Completion,
+    },
+    Recheck {
+        completion: Completion,
+    },
+}
+
+impl Command {
+    fn finish(self, result: CommandResult) {
+        let completion = match self {
+            Command::TypeText { completion, .. }
+            | Command::DeleteChars { completion, .. }
+            | Command::ApplyDiff { completion, .. }
+            | Command::PressChord { completion, .. }
+            | Command::Recheck { completion } => completion,
+        };
+        let _ = completion.send(result);
+    }
 }
 
 /// A keyboard modifier. `Control` maps to Command on macOS so that a
 /// phone-side "Ctrl+V" behaves as users expect (⌘V = paste).
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum Modifier {
     Control,
     Shift,
@@ -105,6 +141,31 @@ fn parse_key(s: &str) -> Option<Key> {
     }
 }
 
+fn parse_chord(modifiers: &[String], key: &str) -> Result<(Vec<Modifier>, Key), String> {
+    let mut parsed_modifiers = Vec::with_capacity(modifiers.len());
+    for modifier in modifiers {
+        parsed_modifiers.push(
+            Modifier::parse(modifier).ok_or_else(|| format!("unknown modifier: {modifier}"))?,
+        );
+    }
+    let parsed_key = parse_key(key).ok_or_else(|| format!("unknown key: {key}"))?;
+    Ok((parsed_modifiers, parsed_key))
+}
+
+fn format_initialization_error(error: impl Display) -> String {
+    format!("keyboard unavailable: enigo initialization failed: {error}")
+}
+
+fn format_enigo_error(operation: &str, error: impl Display) -> String {
+    format!("enigo {operation} error: {error}")
+}
+
+fn record_command_health(healthy: &AtomicBool, result: &CommandResult) {
+    if result.is_err() {
+        healthy.store(false, Ordering::Release);
+    }
+}
+
 pub struct KeyboardInjector {
     tx: mpsc::Sender<Command>,
     healthy: Arc<AtomicBool>,
@@ -113,135 +174,309 @@ pub struct KeyboardInjector {
 impl KeyboardInjector {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel::<Command>();
-        let healthy = Arc::new(AtomicBool::new(true));
+        let healthy = Arc::new(AtomicBool::new(false));
         let healthy_clone = healthy.clone();
+        let (init_tx, init_rx) = mpsc::sync_channel(1);
 
         std::thread::spawn(move || {
             let mut enigo = match Enigo::new(&Settings::default()) {
-                Ok(e) => e,
+                Ok(enigo) => {
+                    healthy_clone.store(true, Ordering::Release);
+                    let _ = init_tx.send(Ok(()));
+                    Some(enigo)
+                }
                 Err(e) => {
-                    log::error!("enigo init failed: {e}");
-                    healthy_clone.store(false, Ordering::Relaxed);
-                    return;
+                    let error = format_initialization_error(e);
+                    log::error!("{error}");
+                    healthy_clone.store(false, Ordering::Release);
+                    let _ = init_tx.send(Err(error.clone()));
+                    None
                 }
             };
 
             #[cfg(target_os = "linux")]
             let mut clipboard_paster = ClipboardPaster::new();
 
-            while let Ok(cmd) = rx.recv() {
-                match cmd {
-                    Command::TypeText(text) => {
+            while let Ok(command) = rx.recv() {
+                match command {
+                    Command::TypeText { text, completion } => {
                         #[cfg(target_os = "linux")]
-                        type_text(&mut enigo, &mut clipboard_paster, &text);
+                        let result = enigo.as_mut().map_or_else(
+                            || Err("keyboard unavailable: recheck permission".to_string()),
+                            |enigo| type_text(enigo, &mut clipboard_paster, &text),
+                        );
 
                         #[cfg(not(target_os = "linux"))]
-                        type_text(&mut enigo, &text);
+                        let result = enigo.as_mut().map_or_else(
+                            || Err("keyboard unavailable: recheck permission".to_string()),
+                            |enigo| type_text(enigo, &text),
+                        );
+
+                        record_command_health(&healthy_clone, &result);
+                        let _ = completion.send(result);
                     }
-                    Command::DeleteChars(count) => {
-                        for _ in 0..count {
-                            if let Err(e) = enigo.key(Key::Backspace, Direction::Click) {
-                                log::error!("enigo backspace error: {e}");
-                                break;
-                            }
-                        }
+                    Command::DeleteChars { count, completion } => {
+                        let result = enigo.as_mut().map_or_else(
+                            || Err("keyboard unavailable: recheck permission".to_string()),
+                            |enigo| delete_chars(enigo, count),
+                        );
+                        record_command_health(&healthy_clone, &result);
+                        let _ = completion.send(result);
                     }
-                    Command::PressChord { modifiers, key } => {
-                        for m in &modifiers {
-                            if let Err(e) = enigo.key(m.enigo_key(), Direction::Press) {
-                                log::error!("enigo modifier press error: {e}");
+                    Command::ApplyDiff {
+                        backspace,
+                        text,
+                        completion,
+                    } => {
+                        #[cfg(target_os = "linux")]
+                        let result = enigo.as_mut().map_or_else(
+                            || Err("keyboard unavailable: recheck permission".to_string()),
+                            |enigo| apply_diff(enigo, &mut clipboard_paster, backspace, &text),
+                        );
+
+                        #[cfg(not(target_os = "linux"))]
+                        let result = enigo.as_mut().map_or_else(
+                            || Err("keyboard unavailable: recheck permission".to_string()),
+                            |enigo| apply_diff(enigo, backspace, &text),
+                        );
+
+                        record_command_health(&healthy_clone, &result);
+                        let _ = completion.send(result);
+                    }
+                    Command::PressChord {
+                        modifiers,
+                        key,
+                        completion,
+                    } => {
+                        let result = enigo.as_mut().map_or_else(
+                            || Err("keyboard unavailable: recheck permission".to_string()),
+                            |enigo| press_chord(enigo, &modifiers, key),
+                        );
+                        record_command_health(&healthy_clone, &result);
+                        let _ = completion.send(result);
+                    }
+                    Command::Recheck { completion } => {
+                        let result = match Enigo::new(&Settings::default()) {
+                            Ok(new_enigo) => {
+                                enigo = Some(new_enigo);
+                                healthy_clone.store(true, Ordering::Release);
+                                Ok(())
                             }
-                        }
-                        if let Err(e) = enigo.key(key, Direction::Click) {
-                            log::error!("enigo chord key error: {e}");
-                        }
-                        for m in modifiers.iter().rev() {
-                            if let Err(e) = enigo.key(m.enigo_key(), Direction::Release) {
-                                log::error!("enigo modifier release error: {e}");
+                            Err(error) => {
+                                healthy_clone.store(false, Ordering::Release);
+                                Err(format_initialization_error(error))
                             }
-                        }
+                        };
+                        let _ = completion.send(result);
                     }
                 }
             }
+            healthy_clone.store(false, Ordering::Release);
         });
+
+        match init_rx.recv() {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => log::warn!("{error}"),
+            Err(_) => log::error!("keyboard injector initialization thread stopped"),
+        }
 
         Self { tx, healthy }
     }
 
     pub fn is_healthy(&self) -> bool {
-        self.healthy.load(Ordering::Relaxed)
+        self.healthy.load(Ordering::Acquire)
     }
 
     pub async fn type_text(&self, text: String) -> Result<(), String> {
-        self.tx
-            .send(Command::TypeText(text))
-            .map_err(|e| format!("enigo channel: {e}"))
+        self.execute("type_text", |completion| Command::TypeText {
+            text,
+            completion,
+        })
+        .await
     }
 
     pub async fn delete_chars(&self, count: u32) -> Result<(), String> {
-        self.tx
-            .send(Command::DeleteChars(count))
-            .map_err(|e| format!("enigo channel: {e}"))
+        self.execute("delete_chars", |completion| Command::DeleteChars {
+            count,
+            completion,
+        })
+        .await
+    }
+
+    pub async fn apply_diff(&self, backspace: u32, text: String) -> Result<(), String> {
+        self.execute("apply_diff", |completion| Command::ApplyDiff {
+            backspace,
+            text,
+            completion,
+        })
+        .await
     }
 
     pub async fn press_chord(&self, modifiers: Vec<String>, key: String) -> Result<(), String> {
-        let mut mods = Vec::with_capacity(modifiers.len());
-        for m in modifiers {
-            mods.push(Modifier::parse(&m).ok_or_else(|| format!("unknown modifier: {m}"))?);
-        }
-        let key = parse_key(&key).ok_or_else(|| format!("unknown key: {key}"))?;
-        self.tx
-            .send(Command::PressChord {
-                modifiers: mods,
-                key,
-            })
-            .map_err(|e| format!("enigo channel: {e}"))
+        let (modifiers, key) = parse_chord(&modifiers, &key)?;
+        self.execute("press_chord", |completion| Command::PressChord {
+            modifiers,
+            key,
+            completion,
+        })
+        .await
     }
+
+    pub async fn recheck(&self) -> Result<(), String> {
+        self.execute("recheck", |completion| Command::Recheck { completion })
+            .await
+    }
+
+    async fn execute(
+        &self,
+        operation: &str,
+        build: impl FnOnce(Completion) -> Command,
+    ) -> Result<(), String> {
+        let (completion, result) = oneshot::channel();
+        if let Err(error) = self.tx.send(build(completion)) {
+            self.healthy.store(false, Ordering::Release);
+            return Err(format!("enigo channel: {error}"));
+        }
+        match result.await {
+            Ok(result) => result,
+            Err(_) => {
+                self.healthy.store(false, Ordering::Release);
+                Err(format!(
+                    "enigo worker stopped before completing {operation}"
+                ))
+            }
+        }
+    }
+}
+
+impl Default for KeyboardInjector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn delete_chars(enigo: &mut Enigo, count: u32) -> Result<(), String> {
+    for _ in 0..count {
+        enigo
+            .key(Key::Backspace, Direction::Click)
+            .map_err(|e| format_enigo_error("backspace", e))?;
+    }
+    Ok(())
+}
+
+fn press_chord(enigo: &mut Enigo, modifiers: &[Modifier], key: Key) -> Result<(), String> {
+    let mut pressed = Vec::with_capacity(modifiers.len());
+    let mut first_error = None;
+
+    for modifier in modifiers {
+        let enigo_key = modifier.enigo_key();
+        match enigo.key(enigo_key, Direction::Press) {
+            Ok(()) => pressed.push(enigo_key),
+            Err(e) => {
+                if first_error.is_none() {
+                    first_error = Some(format_enigo_error("modifier press", e));
+                }
+            }
+        }
+    }
+
+    if let Err(e) = enigo.key(key, Direction::Click) {
+        if first_error.is_none() {
+            first_error = Some(format_enigo_error("chord key", e));
+        }
+    }
+
+    for enigo_key in pressed.into_iter().rev() {
+        if let Err(e) = enigo.key(enigo_key, Direction::Release) {
+            if first_error.is_none() {
+                first_error = Some(format_enigo_error("modifier release", e));
+            }
+        }
+    }
+
+    first_error.map_or(Ok(()), Err)
 }
 
 #[cfg(not(target_os = "linux"))]
-fn type_text(enigo: &mut Enigo, text: &str) {
-    if type_returns(enigo, text) {
-        return;
+fn type_text(enigo: &mut Enigo, text: &str) -> Result<(), String> {
+    if type_returns(enigo, text)? {
+        return Ok(());
     }
 
-    if let Err(e) = enigo.text(text) {
-        log::error!("enigo type_text error: {e}");
-    }
+    enigo
+        .text(text)
+        .map_err(|e| format_enigo_error("type_text", e))
 }
 
 #[cfg(target_os = "linux")]
-fn type_text(enigo: &mut Enigo, clipboard_paster: &mut ClipboardPaster, text: &str) {
-    if type_returns(enigo, text) {
-        return;
+fn type_text(
+    enigo: &mut Enigo,
+    clipboard_paster: &mut ClipboardPaster,
+    text: &str,
+) -> Result<(), String> {
+    if type_returns(enigo, text)? {
+        return Ok(());
     }
 
-    if text.chars().any(|c| !c.is_ascii()) {
+    let clipboard_error = if text.chars().any(|c| !c.is_ascii()) {
         match clipboard_paster.paste_text(enigo, text) {
-            Ok(()) => return,
-            Err(e) => log::warn!("clipboard paste fallback failed: {e}"),
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                log::warn!("clipboard paste fallback failed: {error}");
+                Some(error)
+            }
         }
-    }
+    } else {
+        None
+    };
 
-    if let Err(e) = enigo.text(text) {
-        log::error!("enigo type_text error: {e}");
-    }
+    enigo.text(text).map_err(|error| {
+        let type_error = format_enigo_error("type_text", error);
+        match clipboard_error {
+            Some(clipboard_error) => {
+                format!("{type_error}; clipboard fallback error: {clipboard_error}")
+            }
+            None => type_error,
+        }
+    })
 }
 
-fn type_returns(enigo: &mut Enigo, text: &str) -> bool {
+#[cfg(not(target_os = "linux"))]
+fn apply_diff(enigo: &mut Enigo, backspace: u32, text: &str) -> Result<(), String> {
+    delete_chars(enigo, backspace)?;
+    if !text.is_empty() {
+        type_text(enigo, text)?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn apply_diff(
+    enigo: &mut Enigo,
+    clipboard_paster: &mut ClipboardPaster,
+    backspace: u32,
+    text: &str,
+) -> Result<(), String> {
+    delete_chars(enigo, backspace)?;
+    if !text.is_empty() {
+        type_text(enigo, clipboard_paster, text)?;
+    }
+    Ok(())
+}
+
+fn type_returns(enigo: &mut Enigo, text: &str) -> Result<bool, String> {
     if text.is_empty() || !text.chars().all(|c| c == '\n' || c == '\r') {
-        return false;
+        return Ok(false);
     }
 
-    let count = text.chars().filter(|&c| c == '\n' || c == '\r').count();
+    let count = text.chars().count();
     for _ in 0..count {
-        if let Err(e) = enigo.key(Key::Return, Direction::Click) {
-            log::error!("enigo return error: {e}");
-            break;
-        }
+        enigo
+            .key(Key::Return, Direction::Click)
+            .map_err(|e| format_enigo_error("return", e))?;
     }
 
-    true
+    Ok(true)
 }
 
 #[cfg(target_os = "linux")]
@@ -282,20 +517,54 @@ impl ClipboardPaster {
 fn press_paste_shortcut(enigo: &mut Enigo) -> Result<(), String> {
     enigo
         .key(Key::Control, Direction::Press)
-        .map_err(|e| format!("control press: {e}"))?;
+        .map_err(|e| format_enigo_error("control press", e))?;
     enigo
         .key(Key::Shift, Direction::Press)
-        .map_err(|e| format!("shift press: {e}"))?;
+        .map_err(|e| format_enigo_error("shift press", e))?;
 
     let click_result = enigo
         .key(Key::Unicode('v'), Direction::Click)
-        .map_err(|e| format!("v click: {e}"));
+        .map_err(|e| format_enigo_error("v click", e));
     let shift_release_result = enigo
         .key(Key::Shift, Direction::Release)
-        .map_err(|e| format!("shift release: {e}"));
+        .map_err(|e| format_enigo_error("shift release", e));
     let release_result = enigo
         .key(Key::Control, Direction::Release)
-        .map_err(|e| format!("control release: {e}"));
+        .map_err(|e| format_enigo_error("control release", e));
 
     click_result.and(shift_release_result).and(release_result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_key_returns_a_clear_error() {
+        let modifiers = Vec::new();
+
+        let error = parse_chord(&modifiers, "not-a-key").unwrap_err();
+
+        assert_eq!(error, "unknown key: not-a-key");
+    }
+
+    #[test]
+    fn permission_error_keeps_the_underlying_reason() {
+        let error = format_initialization_error("permission denied");
+
+        assert_eq!(
+            error,
+            "keyboard unavailable: enigo initialization failed: permission denied"
+        );
+    }
+
+    #[test]
+    fn runtime_error_marks_keyboard_unhealthy() {
+        let healthy = AtomicBool::new(true);
+        let result = Err("runtime failure".to_string());
+
+        record_command_health(&healthy, &result);
+
+        assert!(!healthy.load(Ordering::Acquire));
+    }
 }
